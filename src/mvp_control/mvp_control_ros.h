@@ -37,6 +37,9 @@
 #include "tf2/LinearMath/Matrix3x3.h"
 #include "tf2_eigen/tf2_eigen.h"
 #include "tf2_ros/transform_listener.h"
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+
+#include <urdf/model.h>
 
 #include "std_msgs/Float32.h"
 #include "std_srvs/Empty.h"
@@ -100,12 +103,24 @@ namespace ctrl {
         //! @brief Thruster list
         std::vector<ThrusterROS::Ptr> m_thrusters;
 
+        //! @brief Servos list
+        std::vector<ThrusterROS::Ptr> m_servos;
+
         /**! @brief Control Allocation Matrix
          *
          *  Control allocation matrix is generated from individual
          *  configurations of the thrusters.
          */
         Eigen::MatrixXd m_control_allocation_matrix;
+
+        Eigen::MatrixXd m_control_allocation_matrix_previous;
+
+        /**! @brief Thruster Articulation
+         *  Thrusters articulation flag
+         *  passed to this vector equal to the 
+         *  size of atriculation matrix columns
+         */
+        Eigen::VectorXd m_thruster_vector;
 
         //! @brief Control allocation matrix generator type
         GeneratorType m_generator_type;
@@ -115,6 +130,9 @@ namespace ctrl {
 
         //! @brief World link id
         std::string m_world_link_id;
+
+        //! @brief Controller Frequency Param
+        double m_controller_frequency;
 
         //! @brief Transform buffer for TF2
         tf2_ros::Buffer m_transform_buffer;
@@ -133,9 +151,6 @@ namespace ctrl {
 
         //! @brief Set point
         Eigen::VectorXd m_set_point;
-
-        //! @brief Controller frequency
-        double m_controller_frequency;
 
         //! @brief Get control modes ros service server
         ros::ServiceServer m_get_control_modes_server;
@@ -160,6 +175,16 @@ namespace ctrl {
 
         //! @brief Set point subscriber
         ros::Subscriber m_set_point_subscriber;
+
+        //! @brief Joint State subscriber
+        ros::Subscriber m_joint_state_subscriber;
+
+        sensor_msgs::JointState m_latest_joint_state;
+
+        std::recursive_mutex m_joint_state_lock;
+
+        //! @brief Joint state publisher
+        ros::Publisher m_joint_state_publisher;
 
         //! @brief Publishes process error publisher
         ros::Publisher m_process_error_publisher;
@@ -201,6 +226,12 @@ namespace ctrl {
          */
         void f_generate_control_allocation_from_tf();
 
+        /** @brief [WIP]Generates control allocation matrix from transform tree
+         *
+         *  This method is for test
+         */
+        void f_generate_control_allocation_from_tf_2();
+
         /** @brief Generates control allocation matrix from user input
          *
          *  This method is called if generator_type is 'user'
@@ -214,11 +245,29 @@ namespace ctrl {
          */
         void f_generate_control_allocation_matrix();
 
+        /**!
+         * @brief Generates control allocation matrix
+         * This sketch is none of anyone's business untill 
+         * I clean the mess.
+         */
+        void f_generate_control_allocation_matrix_2();
+
         /**
          * @brief
          * @return
          */
         bool f_update_control_allocation_matrix();
+
+        /** @brief Extract servo limits from URDF
+         * 
+         * This method extracts the upper and lower limits of the servo joints from the 
+         * URDF model and updates the provided limit vectors.
+         * 
+         * @param model The URDF model to extract limits from.
+         * @param upper_limit Vector to store the upper limits.
+         * @param lower_limit Vector to store the lower limits.
+         */
+        void f_extractServoLimits(const urdf::Model& model, Eigen::VectorXd& upper_limit, Eigen::VectorXd& lower_limit);
 
         /** @brief Generate thrusters
          *
@@ -240,6 +289,18 @@ namespace ctrl {
          *
          */
         void f_control_loop();
+
+        /** @brief Retrieves the current position of a specified joint.
+         *
+         * This method looks up the current position (angle in radians) of a joint given its name. 
+         * It is typically used to obtain real-time joint angles from the robot's state, which may 
+         * be stored internally or received from a ROS topic. This functionality is crucial for 
+         * control tasks that require knowledge of the robot's current configuration.
+         *
+         * @param joint_name The name of the joint for which the current position is requested.
+         * @return The current position of the joint in radians. Throws an exception if the joint name is not found.
+         */
+        double f_get_current_joint_position(const std::string& joint_name);
 
         /** @brief Convert prq to world_frame angular rate:
          *  Eq.(2.12), Eq.(2.14) from Thor I. Fossen, Guidance and Control of Ocean Vehicles, Page 10
@@ -364,9 +425,21 @@ namespace ctrl {
          */
         void initialize();
 
+        void f_cb_msg_joint_state(const sensor_msgs::JointState::ConstPtr &msg);
+
         //! @brief Generic typedef for shared pointer
         typedef std::shared_ptr<MvpControlROS> Ptr;
 
+        void f_log_latest_joint_state();
+
+        /**
+         * @brief Publishes joint states dynamically.
+         * @param joint_names Names of the joints.
+         * @param positions Positions for each joint.
+         * @param velocities (Optional) Velocities for each joint.
+         * @param efforts (Optional) Efforts for each joint.
+         */
+        void f_publish_joint_states(const std::vector<std::string>& joint_names, const std::vector<double>& positions, const std::vector<double>& velocities = {}, const std::vector<double>& efforts = {});
 
     };
 

@@ -27,7 +27,7 @@
 #include "std_msgs/Float64.h"
 #include "Eigen/Dense"
 #include "polynomial_solver.h"
-
+#include "sensor_msgs/JointState.h"
 
 namespace ctrl {
 
@@ -41,10 +41,12 @@ namespace ctrl {
 
         friend MvpControlROS;
 
-
         //! @brief Public node handler
         ros::NodeHandle m_nh;
 
+        //! @brief Private node handler for accessing private parameters
+        ros::NodeHandle m_pnh;
+        
         //! @brief Thruster ID
         std::string m_id;
 
@@ -54,8 +56,19 @@ namespace ctrl {
         //! @brief Thruster force topic id
         std::string m_thrust_force_topic_id;
 
+        //! @brief Servo command topic id
+        std::string m_servo_command_topic_id;
+        
         //! @brief thruster link id
         std::string m_link_id;
+
+        //! @brief thruster frame id
+        std::string m_frame_id;
+
+        std::vector<double> servo_speeds; 
+
+        //! @brief Transform prefix
+        std::string m_tf_prefix_thruster;
 
         /** @brief Thruster contribution vector
          *
@@ -65,11 +78,32 @@ namespace ctrl {
          */
         Eigen::VectorXd m_contribution_vector;
 
+        /** @brief Stores the IDs of servo joints associated with this thruster.
+         *
+         * This vector contains the IDs of all servo joints that are associated
+         * with a particular thruster. Each thruster may control or affect multiple
+         * servo joints, and this variable maps a thruster to its corresponding
+         * servo joints. 
+         */
+        std::vector<std::string> servo_joints; 
+
         //! @brief Thrust publisher
         ros::Publisher m_thrust_publisher;
 
+        //! @brief Servo angle command publisher
+        ros::Publisher m_servo_command_publisher;
+
         //! @brief Thrust force publisher
         ros::Publisher m_force_publisher;
+
+        //! @brief Servo Joint publisher
+        ros::Publisher m_joint_state_publisher;
+
+        //! @brief Joint state topic ID
+        std::string m_joint_state_topic_id;
+
+        //! @brief Joint state desired topic ID
+        std::string m_joint_state_desired_topic_id;
 
         //! @brief Polynomial solver
         PolynomialSolver::Ptr m_poly_solver;
@@ -78,10 +112,40 @@ namespace ctrl {
 
         double m_force_min;
 
+        double m_angle_max;
+
+        double m_angle_min;
+
+        int is_articulated;
+        
     public:
 
         //! @brief Default constructor
         ThrusterROS();
+
+        /** @brief Gets whether the thruster is articulated.
+         *
+         * @return True if the thruster is articulated, false otherwise.
+         */
+        int get_is_articulated() const;
+
+        /** @brief Sets whether the thruster is articulated.
+         *
+         * @param value True to set the thruster as articulated, false to set it as non-articulated.
+         */
+        void set_is_articulated(int value);
+        
+        /** @brief Sets the servo joints associated with the thruster.
+         *
+         * @param joints A vector of strings containing the IDs of the servo joints associated with the thruster.
+         */
+        void set_servo_joints(const std::vector<std::string>& joints);
+
+        /** @brief Gets the servo joints associated with the thruster.
+         *
+         * @return A vector of strings containing the IDs of the servo joints associated with the thruster.
+         */
+        std::vector<std::string> get_servo_joints() const;
 
         /** @brief Thruster ROS class constructor.
          *
@@ -124,8 +188,43 @@ namespace ctrl {
          *
          * @param topic_id
          */
-        void set_thrust_force_topic_id(
-            const decltype(m_thrust_force_topic_id) &topic_id);
+        void set_thrust_force_topic_id(const decltype(m_thrust_force_topic_id) &topic_id);
+
+        /** @brief Trivial getter for servo command topic id
+         *
+         * @return #ThrusterROS::m_servo_command_topic_id
+         */
+        auto get_servo_command_topic_id() -> decltype(m_servo_command_topic_id);
+
+        /** @brief Default Setter servo command for topic id
+         *
+         * @param topic_id
+         */
+        void set_servo_command_topic_id(const decltype(m_servo_command_topic_id) &topic_id);
+
+        /** @brief Trivial getter for joint state topic id
+         *
+         * @return The topic ID for publishing joint states
+         */
+        auto get_joint_state_topic_id() -> decltype(m_joint_state_topic_id);
+
+        /** @brief Default Setter for joint state topic id
+         *
+         * @param topic_id The topic ID to set for publishing joint states
+         */
+        void set_joint_state_topic_id(const decltype(m_joint_state_topic_id) &topic_id);
+
+        /** @brief Trivial getter for joint state topic id
+         *
+         * @return The topic ID for publishing joint states
+         */
+        auto get_joint_state_desired_topic_id() -> decltype(m_joint_state_topic_id);
+
+        /** @brief Default Setter for joint state topic id
+         *
+         * @param topic_id The topic ID to set for publishing joint states
+         */
+        void set_joint_state_desired_topic_id(const decltype(m_joint_state_topic_id) &topic_id);
 
         /** @brief Trivial getter for link id
          *
@@ -139,6 +238,17 @@ namespace ctrl {
          */
         void set_link_id(const decltype(m_link_id) &link_id);
 
+        /** @brief Trivial getter for frame id
+         *
+         * @return #ThrusterROS::m_frame_id
+         */
+        auto get_frame_id() -> decltype(m_frame_id);
+
+        /** @brief Trivial Setter for frame id
+         *
+         * @param frame_id
+         */
+        void set_frame_id(const decltype(m_frame_id) &frame_id);
 
         /** @brief Trivial getter for thruster id
          *
@@ -176,9 +286,21 @@ namespace ctrl {
          * @param solver
          */
         void set_poly_solver(decltype(m_poly_solver) solver);
-
+  
         //! @brief Generic typedef for shared pointer
         typedef std::shared_ptr<ThrusterROS> Ptr;
+
+        /** @brief Trivial getter for servo speeds
+         *
+         * @return A constant reference to the vector of servo speeds
+         */
+        const std::vector<double>& getServoSpeeds() const;
+
+        /** @brief Trivial setter for servo speeds
+         *
+         * @param speeds The vector of servo speeds to set
+         */
+        void setServoSpeeds(const std::vector<double>& speeds);
 
         /** @brief Publish thruster command
          *
@@ -187,6 +309,14 @@ namespace ctrl {
          * @param cmd
          */
         void command(double cmd);
+
+        /** @brief Publish servo command
+         *
+         * Servo command should be between -1 and 1
+         *
+         * @param normalized_angle
+         */
+        void servo_joint_command(double normalized_angle);
 
         /** @brief Request force from thruster
          *
@@ -197,6 +327,29 @@ namespace ctrl {
          * @return true if polynomial is solved, false if polynomial isn't solved.
          */
         bool request_force(double N);
+
+        /**
+         * @brief Publishes the requested angle for a given joint name.
+         *
+         * This method publishes the desired joint angle to servo hardware
+         *
+         * @param joint_name The name of the joint.
+         * @param requested_angle The requested angle for the joint in radians.
+         * @return true if the joint state is successfully published
+         */
+        bool request_joint_angles(const std::string& joint_name, double requested_angle);
+
+        /** @brief Normalize an angle from a range of [-π, π] to [-1, 1]
+         *
+         * This method takes an angle in radians and normalizes it to a
+         * value between -1 and 1. The normalization is performed using
+         * a linear transformation formula, which maps the range of
+         * [-π, π] (input range) to [-1, 1] (output range).
+         *
+         * @param angle The angle in radians to be normalized, expected to be in the range [-π, π].
+         * @return The normalized angle, which will be within the range [-1, 1].
+         */
+        static double normalize_angle(double angle);
     };
 
 }

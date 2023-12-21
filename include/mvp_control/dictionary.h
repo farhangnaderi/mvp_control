@@ -46,10 +46,18 @@ namespace ctrl {
 
     static constexpr const char * CONF_THRUSTER_POLY = "thruster_polynomials";
     static constexpr const char * CONF_THRUST_COMMAND_TOPICS = "thruster_command_topics";
+    static constexpr const char * CONF_SERVO_COMMAND_TOPICS = "servo_command_topics";
+    static constexpr const char * CONF_SERVO_JOINT_TOPIC = "servo_joint_topic";
+    static constexpr const char * CONF_SERVO_JOINT_TOPIC_DEFAULT = "/control/servos/joint_states";
+    static constexpr const char * CONF_SERVO_JOINT_SETPOINT_TOPIC = "servo_joint_setpoint_topic";
     static constexpr const char * CONF_THRUSTER_FORCE_TOPICS = "thruster_force_topics";
     static constexpr const char * CONF_THRUSTER_IDS = "thruster_ids";
+    static constexpr const char * CONF_SERVO_IDS = "servo_ids";
+    static constexpr const char * CONF_THRUSTER_SERVO_JOINTS = "thruster_servo_joints";
+    static constexpr const char * CONF_THRUSTER_SERVO_SPEEDS = "thruster_servo_speeds";
 
     static constexpr const char * CONF_THRUSTER_LIMITS = "thruster_limits";
+    static constexpr const char * CONF_SERVOS_LIMITS = "servo_limits";
     static constexpr const char * CONF_THRUSTER_MAX = "max";
     static constexpr const char * CONF_THRUSTER_MIN = "min";
 

@@ -75,6 +75,14 @@ namespace ctrl {
 
         Eigen::VectorXd m_lower_limit;
 
+        Eigen::VectorXd m_thruster_vector;
+
+        //! @brief Controlled grequency
+        int m_controller_frequency; 
+
+        //! @brief Current angles for each joint or thruster
+        std::unordered_map<std::string, double> m_current_angles;
+        
         /** @brief Calculates PID using #MimoPID
          *
          * Measures the error between desired and current state.
@@ -115,6 +123,9 @@ namespace ctrl {
         //! @brief Mutex lock for protect desired state during changes
         std::recursive_mutex m_desired_state_lock;
 
+        //! @brief Mutex lock to protect thruster states during changes
+        std::mutex m_thruster_vector_lock; 
+
     public:
         /**ns="alpha_control" @brief Mvp Control default constructor
          *
@@ -129,13 +140,34 @@ namespace ctrl {
         void set_control_allocation_matrix(
             const decltype(m_control_allocation_matrix) &matrix);
 
-
         /** @brief Trivial getter for thruster id
          *
          * @return #MvpControl::m_control_allocation_matrix
          */
         auto get_control_allocation_matrix() ->
         decltype(m_control_allocation_matrix);
+
+        /** @brief Trivial Setter for articulation state vector
+         *
+         * @param vector
+         */
+        void set_thruster_articulation_vector(
+            const decltype(m_thruster_vector) &vector);
+
+        /**
+         * @brief Trivial Setter for controller frequency
+         *
+         * @param frequency The new controller frequency value to set
+         */
+        void set_controller_frequency(
+            const decltype(m_controller_frequency) &frequency);
+        
+        /** @brief Trivial getter for thruster articulation vector
+         *
+         * @return The thruster articulation vector
+         */
+        auto get_thruster_articulation_vector() ->
+        decltype(m_thruster_vector);
 
         //! @brief Standard shared pointer type
         typedef std::shared_ptr<MvpControl> Ptr;
@@ -219,9 +251,34 @@ namespace ctrl {
         void
         update_desired_state(const decltype(m_desired_state) &desired_state);
 
+        /** @brief Set the current angle
+        *
+        * Updates the current angle of the system.
+        * @param angle The new current angle to set.
+        */
+        void set_current_angle(double angle);
+
+        /** @brief Get the current angle
+        *
+        * Retrieves the current angle of the system.
+        * @return The current angle.
+        */
+        double get_current_angle() const;
+        
+        /** @brief Set the lower limit for OSQP boundary conditions
+        *
+        * Updates the lower limit of the system for OSQP boundary conditions.
+        * @param lower_limit The new lower limit to set.
+        */
         void set_lower_limit(const decltype(m_lower_limit) &lower_limit);
 
+        /** @brief Set the upper limit for OSQP boundary conditions
+        *
+        * Updates the upper limit of the system for OSQP boundary conditions.
+        * @param upper_limit The new upper limit to set.
+        */
         void set_upper_limit(const decltype(m_upper_limit) &upper_limit);
+
 
     };
 
