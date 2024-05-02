@@ -489,10 +489,9 @@ bool MvpControlROS::f_update_control_allocation_matrix() {
         auto cg_world = m_transform_buffer.lookupTransform(
             m_world_link_id,
             m_cg_link_id,
-            ros::Time::now(),
-            ros::Duration(15.0)
+            ros::Time(0)
         );
-
+        
         auto tf_eigen = tf2::transformToEigen(cg_world);
 
         tf2::Quaternion quat;
@@ -573,8 +572,7 @@ bool MvpControlROS::f_compute_process_values() {
         auto cg_world = m_transform_buffer.lookupTransform(
             m_world_link_id,
             m_cg_link_id,
-            ros::Time::now(),
-            ros::Duration(10.0)
+            ros::Time(0)
         );
 
         tf2::Quaternion quat;
@@ -599,13 +597,12 @@ bool MvpControlROS::f_compute_process_values() {
     }
         // Transform from odom to world
     try{
-        std::scoped_lock lock(m_odom_lock);
+        // std::scoped_lock lock(m_odom_lock);
 
         auto cg_odom = m_transform_buffer.lookupTransform(
                 m_cg_link_id,
                 m_odometry_msg.child_frame_id,
-                ros::Time::now(),
-                ros::Duration(10)
+                ros::Time(0)
         );
 
         auto cg_odom_eigen = tf2::transformToEigen(cg_odom);
@@ -697,6 +694,7 @@ bool MvpControlROS::f_compute_process_values() {
     e.angular_rate.z = error_state(DOF::YAW_RATE);
 
     m_process_error_publisher.publish(e);
+    // printf("end dt = %lf\r\n", ros::Time::now().toSec() - pt);
 
     return true;
 }
@@ -1344,8 +1342,7 @@ bool MvpControlROS::f_amend_set_point(
         auto tf_world_setpoint = m_transform_buffer.lookupTransform(
             m_world_link_id,
             set_point.header.frame_id,
-            ros::Time::now(),
-            ros::Duration(10.0)
+            ros::Time(0)
         );
 
         auto tf_eigen = tf2::transformToEigen(tf_world_setpoint);
@@ -1363,8 +1360,7 @@ bool MvpControlROS::f_amend_set_point(
         auto tf_1 = m_transform_buffer.lookupTransform(
             set_point.header.frame_id,
             m_world_link_id,
-            ros::Time::now(),
-            ros::Duration(10.0)
+            ros::Time(0)
         );
         auto tf_1_eigen = tf2::transformToEigen(tf_1);
         //find the total rotation matrix from the world link to the desired pose.
