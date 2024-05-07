@@ -1398,19 +1398,23 @@ bool MvpControlROS::f_amend_set_point(
                 auto tf_1_eigen = tf2::transformToEigen(tf_1);
                 //find the total rotation matrix from the world link to the desired pose.
                 Eigen::Matrix3d R_set_point =  tf_1_eigen.rotation() *R;
-                Eigen::Vector3d euler_angles = R_set_point.eulerAngles(2,1,0); // ZYX order
-                rpy_world.z() = euler_angles[0];
-                rpy_world.y() = euler_angles[1];
-                rpy_world.x() = euler_angles[2];
+                // Eigen::Vector3d euler_angles = R_set_point.eulerAngles(2,1,0); // ZYX order
+                // rpy_world.z() = euler_angles[0];
+                // rpy_world.y() = euler_angles[1];
+                // rpy_world.x() = euler_angles[2];
+
+                // printf("from eigen: %lf, %lf, %lf\r\n",rpy_world.x(), rpy_world.y(), rpy_world.z());
 
                 //pitch angle
-                // rpy_world.y() = asin(-R_set_point(2, 0));
+                rpy_world.y() = asin(-R_set_point(2, 0));
 
                 // Calculate yaw (rotation about Z-axis)
-            //    rpy_world.z() = atan2(R_set_point(1, 0), R_set_point(0, 0));
+                rpy_world.z() = atan2(R_set_point(1, 0), R_set_point(0, 0));
 
                 // Calculate roll (rotation about X-axis)
-                // rpy_world.x() = atan2(R_set_point(2, 1), R_set_point(2, 2));
+                rpy_world.x() = atan2(R_set_point(2, 1), R_set_point(2, 2));
+                // printf("from code: %lf, %lf, %lf\r\n",rpy_world.x(), rpy_world.y(), rpy_world.z());
+
 
             }
             else
