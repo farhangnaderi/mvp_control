@@ -491,52 +491,61 @@ bool MvpControlROS::f_update_control_allocation_matrix() {
             m_cg_link_id,
             ros::Time(0)
         );
+        //only contiue the process if the tf is not too old
         
-        auto tf_eigen = tf2::transformToEigen(cg_world);
+        if (abs(cg_world.header.stamp.toSec() - ros::Time::now().toSec()) < 10.0 || cg_world.header.stamp.toSec()==0.0) 
+        { 
+            auto tf_eigen = tf2::transformToEigen(cg_world);
 
-        tf2::Quaternion quat;
-        quat.setW(cg_world.transform.rotation.w);
-        quat.setX(cg_world.transform.rotation.x);
-        quat.setY(cg_world.transform.rotation.y);
-        quat.setZ(cg_world.transform.rotation.z);
+            tf2::Quaternion quat;
+            quat.setW(cg_world.transform.rotation.w);
+            quat.setX(cg_world.transform.rotation.x);
+            quat.setY(cg_world.transform.rotation.y);
+            quat.setZ(cg_world.transform.rotation.z);
 
-        Eigen::VectorXd orientation = Eigen::VectorXd::Zero(CONTROLLABLE_DOF_LENGTH);
-        tf2::Matrix3x3(quat).getRPY(
-            orientation(DOF::ROLL),
-            orientation(DOF::PITCH),
-            orientation(DOF::YAW)
-        );
+            Eigen::VectorXd orientation = Eigen::VectorXd::Zero(CONTROLLABLE_DOF_LENGTH);
+            tf2::Matrix3x3(quat).getRPY(
+                orientation(DOF::ROLL),
+                orientation(DOF::PITCH),
+                orientation(DOF::YAW)
+            );
 
-        Eigen::Matrix3d ang_vel_tranform = Eigen::Matrix3d::Identity();
+            Eigen::Matrix3d ang_vel_tranform = Eigen::Matrix3d::Identity();
 
-        // for each thruster compute contribution in earth frame
-        for(int j = 0 ; j < m_control_allocation_matrix.cols() ; j++){
-            Eigen::Vector3d uvw;
-            uvw <<
-                m_control_allocation_matrix(DOF::SURGE, j),
-                m_control_allocation_matrix(DOF::SWAY, j),
-                m_control_allocation_matrix(DOF::HEAVE, j);
+            // for each thruster compute contribution in earth frame
+            for(int j = 0 ; j < m_control_allocation_matrix.cols() ; j++){
+                Eigen::Vector3d uvw;
+                uvw <<
+                    m_control_allocation_matrix(DOF::SURGE, j),
+                    m_control_allocation_matrix(DOF::SWAY, j),
+                    m_control_allocation_matrix(DOF::HEAVE, j);
 
-            Eigen::Vector3d xyz = tf_eigen.rotation() * uvw;
+                Eigen::Vector3d xyz = tf_eigen.rotation() * uvw;
 
-            m_control_allocation_matrix(DOF::X, j) = xyz(0);
-            m_control_allocation_matrix(DOF::Y, j) = xyz(1);
-            m_control_allocation_matrix(DOF::Z, j) = xyz(2);
-            
-            // Convert prq to world_frame angular rate:
-            //  Eq.(2.12), Eq.(2.14) from Thor I. Fossen, Guidance and Control of Ocean Vehicles, Page 10
-            Eigen::Vector3d pqr;
-            pqr <<
-                m_control_allocation_matrix(DOF::ROLL_RATE, j),
-                m_control_allocation_matrix(DOF::PITCH_RATE, j),
-                m_control_allocation_matrix(DOF::YAW_RATE, j);                
+                m_control_allocation_matrix(DOF::X, j) = xyz(0);
+                m_control_allocation_matrix(DOF::Y, j) = xyz(1);
+                m_control_allocation_matrix(DOF::Z, j) = xyz(2);
+                
+                // Convert prq to world_frame angular rate:
+                //  Eq.(2.12), Eq.(2.14) from Thor I. Fossen, Guidance and Control of Ocean Vehicles, Page 10
+                Eigen::Vector3d pqr;
+                pqr <<
+                    m_control_allocation_matrix(DOF::ROLL_RATE, j),
+                    m_control_allocation_matrix(DOF::PITCH_RATE, j),
+                    m_control_allocation_matrix(DOF::YAW_RATE, j);                
 
-            ang_vel_tranform = f_angular_velocity_transform(orientation);
+                ang_vel_tranform = f_angular_velocity_transform(orientation);
 
-            auto rpy = ang_vel_tranform * pqr;
-            m_control_allocation_matrix(DOF::ROLL, j) = rpy(0);
-            m_control_allocation_matrix(DOF::PITCH, j) = rpy(1);
-            m_control_allocation_matrix(DOF::YAW, j) = rpy(2);             
+                auto rpy = ang_vel_tranform * pqr;
+                m_control_allocation_matrix(DOF::ROLL, j) = rpy(0);
+                m_control_allocation_matrix(DOF::PITCH, j) = rpy(1);
+                m_control_allocation_matrix(DOF::YAW, j) = rpy(2);       
+            }      
+        }
+        else
+        {
+            ROS_WARN( "%s to %s TF too old!", m_world_link_id.c_str(), m_cg_link_id.c_str() );
+            return false;
         }
 
     } catch(tf2::TransformException& e) {
@@ -575,21 +584,29 @@ bool MvpControlROS::f_compute_process_values() {
             ros::Time(0)
         );
 
-        tf2::Quaternion quat;
-        quat.setW(cg_world.transform.rotation.w);
-        quat.setX(cg_world.transform.rotation.x);
-        quat.setY(cg_world.transform.rotation.y);
-        quat.setZ(cg_world.transform.rotation.z);
+        if (abs(cg_world.header.stamp.toSec() - ros::Time::now().toSec()) < 10 || cg_world.header.stamp.toSec()==0.0) 
+        {
+            tf2::Quaternion quat;
+            quat.setW(cg_world.transform.rotation.w);
+            quat.setX(cg_world.transform.rotation.x);
+            quat.setY(cg_world.transform.rotation.y);
+            quat.setZ(cg_world.transform.rotation.z);
 
-        tf2::Matrix3x3(quat).getRPY(
-            m_process_values(DOF::ROLL),
-            m_process_values(DOF::PITCH),
-            m_process_values(DOF::YAW)
-        );
+            tf2::Matrix3x3(quat).getRPY(
+                m_process_values(DOF::ROLL),
+                m_process_values(DOF::PITCH),
+                m_process_values(DOF::YAW)
+            );
 
-        m_process_values(DOF::X) = cg_world.transform.translation.x;
-        m_process_values(DOF::Y) = cg_world.transform.translation.y;
-        m_process_values(DOF::Z) = cg_world.transform.translation.z;
+            m_process_values(DOF::X) = cg_world.transform.translation.x;
+            m_process_values(DOF::Y) = cg_world.transform.translation.y;
+            m_process_values(DOF::Z) = cg_world.transform.translation.z;
+        }
+        else
+        {
+            ROS_WARN( "%s to %s TF too old!", m_world_link_id.c_str(), m_cg_link_id.c_str() );
+            return false;
+        }
 
     } catch(tf2::TransformException &e) {
         ROS_WARN_STREAM_THROTTLE(10, std::string("Can't compute process values: ") + e.what());
@@ -604,48 +621,57 @@ bool MvpControlROS::f_compute_process_values() {
                 m_odometry_msg.child_frame_id,
                 ros::Time(0)
         );
+        if (abs(cg_odom.header.stamp.toSec() - ros::Time::now().toSec()) < 10 || cg_odom.header.stamp.toSec() ==0.0) 
+        {
 
-        auto cg_odom_eigen = tf2::transformToEigen(cg_odom);
+            auto cg_odom_eigen = tf2::transformToEigen(cg_odom);
 
-        // angular velocity from odomteyr_child_frame to cd_link
-        tf2::Quaternion quat;
-        quat.setW(cg_odom.transform.rotation.w);
-        quat.setX(cg_odom.transform.rotation.x);
-        quat.setY(cg_odom.transform.rotation.y);
-        quat.setZ(cg_odom.transform.rotation.z);
+            // angular velocity from odomteyr_child_frame to cd_link
+            tf2::Quaternion quat;
+            quat.setW(cg_odom.transform.rotation.w);
+            quat.setX(cg_odom.transform.rotation.x);
+            quat.setY(cg_odom.transform.rotation.y);
+            quat.setZ(cg_odom.transform.rotation.z);
 
-        Eigen::VectorXd orientation = Eigen::VectorXd::Zero(CONTROLLABLE_DOF_LENGTH);
-        tf2::Matrix3x3(quat).getRPY(
-            orientation(DOF::ROLL),
-            orientation(DOF::PITCH),
-            orientation(DOF::YAW)
-        );
+            Eigen::VectorXd orientation = Eigen::VectorXd::Zero(CONTROLLABLE_DOF_LENGTH);
+            tf2::Matrix3x3(quat).getRPY(
+                orientation(DOF::ROLL),
+                orientation(DOF::PITCH),
+                orientation(DOF::YAW)
+            );
 
-        // convert linear velocity from odomtery to cg_link
-        Eigen::Vector3d uvw;
-        uvw(0) = m_odometry_msg.twist.twist.linear.x;
-        uvw(1) = m_odometry_msg.twist.twist.linear.y;
-        uvw(2) = m_odometry_msg.twist.twist.linear.z;
+            // convert linear velocity from odomtery to cg_link
+            Eigen::Vector3d uvw;
+            uvw(0) = m_odometry_msg.twist.twist.linear.x;
+            uvw(1) = m_odometry_msg.twist.twist.linear.y;
+            uvw(2) = m_odometry_msg.twist.twist.linear.z;
 
-        uvw = cg_odom_eigen.rotation()  * uvw;
+            uvw = cg_odom_eigen.rotation()  * uvw;
 
-        m_process_values(DOF::SURGE) = uvw(0);
-        m_process_values(DOF::SWAY) = uvw(1);
-        m_process_values(DOF::HEAVE) = uvw(2);
+            m_process_values(DOF::SURGE) = uvw(0);
+            m_process_values(DOF::SWAY) = uvw(1);
+            m_process_values(DOF::HEAVE) = uvw(2);
 
-        // convert angular velocity from odom_child_link to cg_link
-        Eigen::Matrix3d ang_vel_transform = f_angular_velocity_transform(orientation);
+            // convert angular velocity from odom_child_link to cg_link
+            Eigen::Matrix3d ang_vel_transform = f_angular_velocity_transform(orientation);
 
-        Eigen::Vector3d angular_rate;
-        angular_rate(0) = m_odometry_msg.twist.twist.angular.x;
-        angular_rate(1) = m_odometry_msg.twist.twist.angular.y;
-        angular_rate(2) = m_odometry_msg.twist.twist.angular.z;
+            Eigen::Vector3d angular_rate;
+            angular_rate(0) = m_odometry_msg.twist.twist.angular.x;
+            angular_rate(1) = m_odometry_msg.twist.twist.angular.y;
+            angular_rate(2) = m_odometry_msg.twist.twist.angular.z;
 
-        angular_rate = ang_vel_transform * angular_rate;
+            angular_rate = ang_vel_transform * angular_rate;
 
-        m_process_values(DOF::ROLL_RATE) = angular_rate(0);
-        m_process_values(DOF::PITCH_RATE) = angular_rate(1);
-        m_process_values(DOF::YAW_RATE) = angular_rate(2);
+            m_process_values(DOF::ROLL_RATE) = angular_rate(0);
+            m_process_values(DOF::PITCH_RATE) = angular_rate(1);
+            m_process_values(DOF::YAW_RATE) = angular_rate(2);
+        }
+        else
+        {
+            printf("time %lf, dt=%lf \r\n", cg_odom.header.stamp.toSec(), ros::Time::now().toSec());
+            ROS_WARN( "%s to %s TF too old!", m_cg_link_id.c_str(), m_odometry_msg.child_frame_id.c_str() );
+            return false;
+        }
 
     } catch(tf2::TransformException &e) {
         ROS_WARN_STREAM_THROTTLE(10, std::string("Can't compute process values!, check odometry!: ") + e.what());
@@ -1344,37 +1370,60 @@ bool MvpControlROS::f_amend_set_point(
             set_point.header.frame_id,
             ros::Time(0)
         );
+        if (abs(tf_world_setpoint.header.stamp.toSec() - ros::Time::now().toSec()) < 10 || tf_world_setpoint.header.stamp.toSec()==0.0) 
+        { 
+            
+            auto tf_eigen = tf2::transformToEigen(tf_world_setpoint);
 
-        auto tf_eigen = tf2::transformToEigen(tf_world_setpoint);
+            p_world = tf_eigen.rotation() * 
+                                    Eigen::Vector3d(set_point.position.x, set_point.position.y, set_point.position.z)
+                                    + tf_eigen.translation();
+            ///convert euler angle into a different frame
+            ///find the rotation matrix from the set point frame to the desired pose.
+            Eigen::Matrix3d R;
+            R = Eigen::AngleAxisd(set_point.orientation.z, Eigen::Vector3d::UnitZ()) *
+                                Eigen::AngleAxisd(set_point.orientation.y, Eigen::Vector3d::UnitY()) *
+                                Eigen::AngleAxisd(set_point.orientation.x, Eigen::Vector3d::UnitX());
+       
+            //find rotation matrix from the world link to the setpoint frame.
+            auto tf_1 = m_transform_buffer.lookupTransform(
+                set_point.header.frame_id,
+                m_world_link_id,
+                ros::Time(0)
+            );
 
-        p_world = tf_eigen.rotation() * 
-                                  Eigen::Vector3d(set_point.position.x, set_point.position.y, set_point.position.z)
-                                  + tf_eigen.translation();
-        ///convert euler angle into a different frame
-        ///find the rotation matrix from the set point frame to the desired pose.
-        Eigen::Matrix3d R;
-        R = Eigen::AngleAxisd(set_point.orientation.z, Eigen::Vector3d::UnitZ()) *
-                            Eigen::AngleAxisd(set_point.orientation.y, Eigen::Vector3d::UnitY()) *
-                            Eigen::AngleAxisd(set_point.orientation.x, Eigen::Vector3d::UnitX());
-        //find rotation matrix from the world link to the setpoint frame.
-        auto tf_1 = m_transform_buffer.lookupTransform(
-            set_point.header.frame_id,
-            m_world_link_id,
-            ros::Time(0)
-        );
-        auto tf_1_eigen = tf2::transformToEigen(tf_1);
-        //find the total rotation matrix from the world link to the desired pose.
-        Eigen::Matrix3d R_set_point =  tf_1_eigen.rotation() *R;
+            if (abs(tf_1.header.stamp.toSec() - ros::Time::now().toSec()) < 10 || tf_1.header.stamp.toSec()==0.0) 
+            { 
+            
+                auto tf_1_eigen = tf2::transformToEigen(tf_1);
+                //find the total rotation matrix from the world link to the desired pose.
+                Eigen::Matrix3d R_set_point =  tf_1_eigen.rotation() *R;
+                Eigen::Vector3d euler_angles = R_set_point.eulerAngles(2,1,0); // ZYX order
+                rpy_world.z() = euler_angles[0];
+                rpy_world.y() = euler_angles[1];
+                rpy_world.x() = euler_angles[2];
 
-        rpy_world.y() = asin(-R_set_point(2, 0));
+                //pitch angle
+                // rpy_world.y() = asin(-R_set_point(2, 0));
 
-        // Calculate yaw (rotation about Z-axis)
-        rpy_world.z() = atan2(R_set_point(1, 0), R_set_point(0, 0));
+                // Calculate yaw (rotation about Z-axis)
+            //    rpy_world.z() = atan2(R_set_point(1, 0), R_set_point(0, 0));
 
-        // Calculate roll (rotation about X-axis)
-        rpy_world.x() = atan2(R_set_point(2, 1), R_set_point(2, 2));
+                // Calculate roll (rotation about X-axis)
+                // rpy_world.x() = atan2(R_set_point(2, 1), R_set_point(2, 2));
 
-
+            }
+            else
+            {
+                ROS_WARN( "%s to %s TF too old!", set_point.header.frame_id.c_str(), m_world_link_id.c_str() );
+                return false;
+            }
+        }
+        else
+        {
+            ROS_WARN( "%s to %s TF too old!", m_world_link_id.c_str(), set_point.header.frame_id.c_str() );
+            return false;
+        }
         // rpy_world = tf_eigen.rotation() * 
                                     // Eigen::Vector3d(set_point.orientation.x, set_point.orientation.y, set_point.orientation.z);
 
