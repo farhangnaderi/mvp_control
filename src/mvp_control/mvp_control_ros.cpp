@@ -166,6 +166,19 @@ MvpControlROS::MvpControlROS()
         )
     );
 
+    m_get_controller_state_server = m_nh.advertiseService
+        <std_srvs::Trigger::Request,
+        std_srvs::Trigger::Response>
+    (
+        SERVICE_GET_CONTROLLER_STATE,
+        std::bind(
+            &MvpControlROS::f_cb_srv_get_controller_state,
+            this,
+            std::placeholders::_1,
+            std::placeholders::_2
+        )
+    );
+
     m_get_active_mode_server = m_nh.advertiseService
         <mvp_msgs::GetControlMode::Request,
         mvp_msgs::GetControlMode::Response>
@@ -1175,6 +1188,16 @@ bool MvpControlROS::f_cb_srv_disable(
 
     return true;
 }
+
+
+bool MvpControlROS::f_cb_srv_get_controller_state(
+        std_srvs::Trigger::Request req, std_srvs::Trigger::Response res) {
+    res.success = true;
+    res.message = m_enabled ? "true" : "false";
+
+    return true;
+}
+
 
 bool MvpControlROS::f_cb_srv_get_active_mode(
     mvp_msgs::GetControlMode::Request& req,
