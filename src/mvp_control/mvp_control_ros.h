@@ -353,8 +353,8 @@ namespace ctrl {
          * @return false
          */
         bool f_cb_srv_get_controller_state(
-            std_srvs::Trigger::Request req,
-            std_srvs::Trigger::Response resp);
+            std_srvs::Trigger::Request &req,
+            std_srvs::Trigger::Response &resp);
 
         /**
          * @brief Get active control mode

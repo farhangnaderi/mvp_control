@@ -1191,9 +1191,14 @@ bool MvpControlROS::f_cb_srv_disable(
 
 
 bool MvpControlROS::f_cb_srv_get_controller_state(
-        std_srvs::Trigger::Request req, std_srvs::Trigger::Response res) {
-    res.success = true;
-    res.message = m_enabled ? "enabled" : "disabled";
+        std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &resp) {
+    resp.success = true;
+    if(m_enabled){
+         resp.message = "enabled";
+    }
+    else{
+        resp.message = "disabled";
+    }
 
     return true;
 }
