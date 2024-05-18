@@ -180,7 +180,7 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
         m_controlled_freedoms.size(),
         m_control_allocation_matrix.cols()
     );
-    
+
     // Control matrix
     Eigen::VectorXd U(m_controlled_freedoms.size());
 
@@ -223,14 +223,15 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
 
     // Check the last element if it's not part of the last checked pair
     if (m_thruster_vector.size() > 0 && (
-        m_thruster_vector(m_thruster_vector.size() - 1) != 2 || (m_thruster_vector.size() > 1 
+        m_thruster_vector(m_thruster_vector.size() - 1) != 2 || (m_thruster_vector.size() > 1
         && m_thruster_vector(m_thruster_vector.size() - 2) != 1))) {
         single_count++;
     }
 
-    // int kNumConstraints = 5 * pair_count + single_count; 
+    // @TODO dynamic beta
+    // int kNumConstraints = 5 * pair_count + single_count;
     // int kNumVariables = m_control_allocation_matrix.cols();
-    
+
     // // Initialize the OSQP instance
     // osqp::OsqpInstance qp_instance;
     // qp_instance.objective_matrix = Q.sparseView();
@@ -240,7 +241,7 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
 
     // Eigen::SparseMatrix<double> A_sparse(kNumConstraints, kNumVariables);
     // std::vector<Eigen::Triplet<double>> A_triplets;
- 
+
     // //Assuming articulated joints are entered first in config file
     // // followed by non articulated
     // for (size_t i = 0; i < m_thruster_vector.size(); ++i) {
@@ -301,7 +302,7 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
     //     switch (static_cast<int>(boundary_slack_vector[i])) {
     //         case 1:
     //             // F1 and F2 x
-    //             qp_instance.lower_bounds[i] = 0; 
+    //             qp_instance.lower_bounds[i] = 0;
     //             qp_instance.upper_bounds[i] =  m_upper_limit((i/3)+1) * cos(omega * deltaT);
 
     //             for (int j = i + 1; j < i + 5; ++j) {
@@ -312,10 +313,10 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
     //             break;
     //         case 0:
     //             if ((i + 1) % 5 == 0) {
-    //                 qp_instance.lower_bounds[i] = m_lower_limit[i-4]; 
+    //                 qp_instance.lower_bounds[i] = m_lower_limit[i-4];
     //                 qp_instance.upper_bounds[i] = m_upper_limit[i-4];
-    //             } else { 
-    //                 qp_instance.lower_bounds[i] = m_lower_limit[i-5]; 
+    //             } else {
+    //                 qp_instance.lower_bounds[i] = m_lower_limit[i-5];
     //                 qp_instance.upper_bounds[i] = m_upper_limit[i-5];
     //             }
     //             break;
@@ -364,7 +365,7 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
                 // Set bounds for the constraints associated with thruster_setting 1
                 qp_instance.lower_bounds[base_idx] = 0;
                 qp_instance.upper_bounds[base_idx] = m_upper_limit[(base_idx / 3) + 1] * std::cos(omega_deltaT);
-                
+
                 qp_instance.lower_bounds[base_idx + 1] = -kInfinity;
                 qp_instance.upper_bounds[base_idx + 1] = 0;
                 qp_instance.lower_bounds[base_idx + 2] = -kInfinity;
@@ -479,12 +480,12 @@ Eigen::ArrayXd MvpControl::f_error_function(Eigen::ArrayXd desired,
         // error(i) = diff < -M_PI ? diff + 2*M_PI : diff;
 
         //wrap desired and current in to -pi to pi
-        auto d = (fmod(desired(i) + std::copysign(M_PI, desired(i)), 2*M_PI) 
+        auto d = (fmod(desired(i) + std::copysign(M_PI, desired(i)), 2*M_PI)
                 - std::copysign(M_PI, desired(i)));
-        auto c = (fmod(current(i) + std::copysign(M_PI,current(i)), 2*M_PI) 
+        auto c = (fmod(current(i) + std::copysign(M_PI,current(i)), 2*M_PI)
                 - std::copysign(M_PI,current(i)));
         auto t = d - c;
-        double diff = (fmod(t + std::copysign(M_PI,t), 2*M_PI) 
+        double diff = (fmod(t + std::copysign(M_PI,t), 2*M_PI)
                 - std::copysign(M_PI,t));
         error(i) = diff;
     }
