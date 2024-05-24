@@ -52,6 +52,7 @@ MvpControlROS::MvpControlROS()
     std::string tf_prefix;
     m_pnh.param<std::string>(CONF_TF_PREFIX, tf_prefix, CONF_TF_PREFIX_DEFAULT);
     m_tf_prefix = tf_prefix.empty() ? CONF_TF_PREFIX_DEFAULT : tf_prefix + "/";
+    m_mvp_control-> set_tf_prefix(m_tf_prefix);
 
     // Read configuration: center of gravity link
     std::string cg_link_id;
@@ -1095,6 +1096,7 @@ void MvpControlROS::f_control_loop() {
 
                         std::string thruster_link_id = m_thrusters.at(i)->get_link_id();
                         double current_angle = 0.0;  // This will hold the computed angle in the x-z plane
+                        std::string joint_name = m_tf_prefix + m_thrusters.at(i)->get_servo_joints().at(0);
 
                         try {
                             auto tf_cg_thruster = m_transform_buffer.lookupTransform(
@@ -1124,7 +1126,6 @@ void MvpControlROS::f_control_loop() {
                             continue; // Skip this iteration if the transform is unavailable
                         }
 
-                        std::string joint_name = m_tf_prefix + m_thrusters.at(i)->get_servo_joints().at(0);
 
                         double x = needed_forces(i);
                         double y = needed_forces(i + 1);

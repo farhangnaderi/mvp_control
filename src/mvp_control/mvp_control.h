@@ -77,8 +77,10 @@ namespace ctrl {
 
         Eigen::VectorXd m_thruster_vector;
 
+        std::string m_tf_prefix; 
+
         //! @brief Controlled grequency
-        int m_controller_frequency; 
+        double m_controller_frequency; 
 
         //! @brief Current angles for each joint or thruster
         std::unordered_map<std::string, double> m_current_angles;
@@ -132,7 +134,6 @@ namespace ctrl {
          */
         MvpControl();
 
-
         /** @brief Trivial Setter for control allocation matrix
          *
          * @param matrix
@@ -161,7 +162,34 @@ namespace ctrl {
          */
         void set_controller_frequency(
             const decltype(m_controller_frequency) &frequency);
-        
+
+        /**
+         * @brief Getter for controller frequency
+         *
+         * @return The current controller frequency value
+         */
+        decltype(m_controller_frequency) get_controller_frequency() const {
+            return m_controller_frequency;
+        }
+
+        /**
+         * @brief Trivial Setter for TF prefix
+         *
+         * @param prefix The new TF prefix value to set
+         */
+        void set_tf_prefix(const std::string &prefix) {
+            m_tf_prefix = prefix;
+        }
+
+        /**
+         * @brief Getter for TF prefix
+         *
+         * @return The current TF prefix value
+         */
+        std::string get_tf_prefix() const {
+            return m_tf_prefix;
+        }
+
         /** @brief Trivial getter for thruster articulation vector
          *
          * @return The thruster articulation vector
@@ -256,15 +284,15 @@ namespace ctrl {
         * Updates the current angle of the system.
         * @param angle The new current angle to set.
         */
-        void set_current_angle(double angle);
+        void set_current_angle(const std::string& joint_name, double angle);
 
         /** @brief Get the current angle
         *
         * Retrieves the current angle of the system.
         * @return The current angle.
         */
-        double get_current_angle() const;
-        
+        double get_current_angle(const std::string& joint_name) const;     
+
         /** @brief Set the lower limit for OSQP boundary conditions
         *
         * Updates the lower limit of the system for OSQP boundary conditions.
@@ -278,7 +306,6 @@ namespace ctrl {
         * @param upper_limit The new upper limit to set.
         */
         void set_upper_limit(const decltype(m_upper_limit) &upper_limit);
-
 
     };
 

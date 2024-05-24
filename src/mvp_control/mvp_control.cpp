@@ -72,15 +72,16 @@ void MvpControl::set_thruster_articulation_vector(
     m_thruster_vector = vector;
 }
 
+auto MvpControl::get_thruster_articulation_vector() ->
+        decltype(m_thruster_vector){
+    return m_thruster_vector;
+}
+
 void MvpControl::set_controller_frequency(
         const decltype(m_controller_frequency)& frequency) {
     m_controller_frequency = frequency;
 }
 
-auto MvpControl::get_thruster_articulation_vector() ->
-        decltype(m_thruster_vector){
-    return m_thruster_vector;
-}
 auto MvpControl::get_pid() -> decltype(m_pid) {
     return m_pid;
 }
@@ -129,6 +130,7 @@ double MvpControl::get_current_angle(const std::string& joint_name) const {
         //@TODO Handle case where the joint name is not found
         return false;
     }
+}
 
 bool MvpControl::calculate_needed_forces(Eigen::VectorXd *f, double dt) {
 
@@ -206,8 +208,8 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
     const double kInfinity = std::numeric_limits<double>::infinity();
 
     const double omega = 5.24;
-    const double gamma_lower = -3.10
-    const double gamma_upper = 3.10
+    const double gamma_lower = -3.10;
+    const double gamma_upper = 3.10;
     const double deltaT = 1 / m_controller_frequency;
     int pair_count = 0;
     int single_count = 0;
@@ -342,7 +344,7 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
     for (size_t i = 0; i < m_thruster_vector.size(); ++i) {
         int thruster_setting = static_cast<int>(m_thruster_vector[i]);
         std::string joint_name = m_tf_prefix + m_thrusters.at(i)->get_servo_joints().at(0);
-        double beta = m_mvp_control->get_current_angle(joint_name); // Retrieve the current angle
+        double beta = get_current_angle(joint_name); // Retrieve the current angle
 
         switch (thruster_setting) {
             case 0:
