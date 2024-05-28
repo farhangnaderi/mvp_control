@@ -343,8 +343,9 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
 
     for (size_t i = 0; i < m_thruster_vector.size(); ++i) {
         int thruster_setting = static_cast<int>(m_thruster_vector[i]);
-        std::string joint_name = m_tf_prefix + m_thrusters.at(i)->get_servo_joints().at(0);
+        std::string joint_name = m_tf_prefix ;// + m_thrusters.at(i)->get_servo_joints().at(0);
         double beta = get_current_angle(joint_name); // Retrieve the current angle
+        int base_idx = 0;
 
         switch (thruster_setting) {
             case 0:
@@ -353,7 +354,7 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
                 qp_instance.upper_bounds[(i * 3) / 2] = m_upper_limit[(i * 3) / 2];
                 break;
             case 1:
-                int base_idx = (i * 5) / 2;
+                base_idx = (i * 5) / 2;
                 A_triplets.emplace_back(base_idx, i, 1.0);
                 A_triplets.emplace_back(base_idx + 1, i, -omega_deltaT);
                 A_triplets.emplace_back(base_idx + 2, i, -omega_deltaT);
