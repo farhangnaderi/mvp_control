@@ -93,6 +93,7 @@ namespace ctrl {
 
     static constexpr const char * SERVICE_CONTROL_ENABLE = "controller/enable";
     static constexpr const char * SERVICE_CONTROL_DISABLE = "controller/disable";
+    static constexpr const char * SERVICE_GET_CONTROLLER_STATE = "controller/get_state";
     static constexpr const char * SERVICE_GET_CONTROL_MODES = "controller/get_modes";
     static constexpr const char * SERVICE_SET_CONTROL_POINT = "controller/set_point";
     static constexpr const char * SERVICE_GET_ACTIVE_MODE = "controller/active_mode";

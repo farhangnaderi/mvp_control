@@ -52,7 +52,6 @@ MvpControlROS::MvpControlROS()
     std::string tf_prefix;
     m_pnh.param<std::string>(CONF_TF_PREFIX, tf_prefix, CONF_TF_PREFIX_DEFAULT);
     m_tf_prefix = tf_prefix.empty() ? CONF_TF_PREFIX_DEFAULT : tf_prefix + "/";
-    m_mvp_control-> set_tf_prefix(m_tf_prefix);
 
     // Read configuration: center of gravity link
     std::string cg_link_id;
@@ -183,6 +182,19 @@ MvpControlROS::MvpControlROS()
         )
     );
 
+    m_get_controller_state_server = m_nh.advertiseService
+        <std_srvs::Trigger::Request,
+        std_srvs::Trigger::Response>
+    (
+        SERVICE_GET_CONTROLLER_STATE,
+        std::bind(
+            &MvpControlROS::f_cb_srv_get_controller_state,
+            this,
+            std::placeholders::_1,
+            std::placeholders::_2
+        )
+    );
+
     m_get_active_mode_server = m_nh.advertiseService
         <mvp_msgs::GetControlMode::Request,
         mvp_msgs::GetControlMode::Response>
@@ -285,6 +297,7 @@ void MvpControlROS::f_generate_control_allocation_matrix_2() {
 
     m_mvp_control->set_thruster_articulation_vector(m_thruster_vector);
     m_mvp_control->set_controller_frequency(m_controller_frequency);
+    m_mvp_control-> set_tf_prefix(m_tf_prefix);
     // Initialize the control allocation matrix based on zero matrix.
     // M by N matrix. M -> number of all controllable DOF, N -> number of
     // thrusters
@@ -1126,7 +1139,6 @@ void MvpControlROS::f_control_loop() {
                             continue; // Skip this iteration if the transform is unavailable
                         }
 
-
                         double x = needed_forces(i);
                         double y = needed_forces(i + 1);
                         double calculated_angle = atan2(y, x); 
@@ -1564,6 +1576,19 @@ bool MvpControlROS::f_cb_srv_disable(
 
     ROS_INFO("Controller disabled!");
     m_enabled = false;
+
+    return true;
+}
+
+bool MvpControlROS::f_cb_srv_get_controller_state(
+        std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &resp) {
+    resp.success = true;
+    if(m_enabled){
+         resp.message = "enabled";
+    }
+    else{
+        resp.message = "disabled";
+    }
 
     return true;
 }

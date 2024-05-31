@@ -1,0 +1,442 @@
+[33mcommit ec4a5e57a7631dba6910688c050e15aaff159fde[m[33m ([m[1;36mHEAD -> [m[1;32mfeature/articulated_thruster[m[33m)[m
+Author: Farhang <farhang.nba@gmail.com>
+Date:   Thu May 30 21:24:01 2024 -0400
+
+    temporary changes
+
+[33mcommit 170aec8c210effdd2363abfbbeba67e6318bafa9[m[33m ([m[1;31morigin/feature/articulated_thruster[m[33m)[m
+Author: Farhang <farhang.nba@gmail.com>
+Date:   Tue May 28 01:10:53 2024 -0400
+
+    temporary edit
+
+[33mcommit e39860f32bd3c6f4fb9c9a4f4b837c38ddf9dd1d[m
+Author: farhangnaderi <farhang.nba@gmail.com>
+Date:   Fri May 24 17:33:18 2024 -0400
+
+    Drafting Servo limits #4
+
+[33mcommit 04cc10a87c09715e71ef5574bca7bd0dd29b43b4[m
+Author: FARHANG <farhang.nba@gmail.com>
+Date:   Fri May 17 20:09:07 2024 -0400
+
+    Commented dynamic beta
+
+[33mcommit 6e4ed990b730b68356683dd00b87f4c34228929d[m
+Author: mingxi <mzhou@uri.edu>
+Date:   Thu Dec 21 11:02:04 2023 -0500
+
+    implemented feature to set thruster to 0 when controller disabled
+    
+    Initial addition of thruster ros servo angles
+    
+    mvp_ros_control add servo defines
+    
+    Servo handling inintial defs
+    
+    Drafting parser and articulated joint checker
+    
+    Printout Quadratic comment out!
+    
+    restored tanslation and rotation code back!
+    
+    reverting force and moment calculations from Fossen
+    
+    Articulated Flag check
+    
+    Sketching Gen Alloc Mat 1
+    
+    "Enhance thruster initialization with articulated state and servo joint logging"
+    
+    gen control matrix sketch 1
+    
+    update alloc matrix and gen alloct mat draft
+    
+    Raw Force Extraction draft
+    
+    Clearing up commit 3f9228c
+    
+    Correction to generate_thrusters isArticulated
+    
+    yaw angle calcs correction
+    
+    update_control_alloc changes 1
+    
+    Update mvp_control_ros comments
+    
+    Init switch case for all forces!
+    
+    Personal Comments!
+    
+    Articulated draft working 1
+    
+     Articulated draft f_update_control alloc change
+    
+    Update mvp_control_ros.cpp
+    
+    Update mvp_control_ros.cpp
+    
+    setter getter for articulation state vector
+    
+    Sketching omega and updated pqr
+    
+    quadratic solver constraints draft
+    
+    minor corrections to dict and osqp boundaries
+    
+    angle update to current servo angle
+    
+    roslog angles published!
+    
+    get servo angle function add
+    
+    Generalize Atriplet matrix
+    
+    replaced TF with jointState for current servo angle
+    
+    commit 5dc7993 on noetic devel
+    
+    Generalizing Sparse and boundaries calcs 2
+    
+    Generalizing A contraint matrix.
+    
+    Generalize constrains functions 3
+    
+    mvp control controller freq addition
+    
+    optimize thrust draft removal!
+    
+    remove printing boundaries!
+    
+    Adding Pico support & round2 drafting servo limits
+    
+    housekeeping and thruster limits drafting 3
+    
+    servo limits draft round 4
+    
+    Angle limits draft 4
+
+[33mcommit beeffb0058d179c28c3584b297133e8f3ab419e7[m
+Merge: c9eef31 30f1230
+Author: mingxi <mzhou@uri.edu>
+Date:   Wed Dec 13 16:08:19 2023 -0500
+
+    Merge branch 'noetic-devel' of https://github.com/uri-ocean-robotics/mvp_control into noetic-devel
+
+[33mcommit c9eef31c63e274301ec03b8a311f6456cd41e48b[m
+Author: mingxi <mzhou@uri.edu>
+Date:   Wed Dec 13 16:07:53 2023 -0500
+
+    fixed the wrap to -pi to pi bugs for euler angles
+
+[33mcommit 30f1230930bfc4341af9dfa241471788f7c64472[m
+Author: Lin Zhao <linzhao@uri.edu>
+Date:   Mon Dec 4 12:12:31 2023 -0500
+
+    Update on-pull-request.yml
+    
+    update ros-tooling
+
+[33mcommit e01f5a0308e31f1c49e83c6ee302f9a999983094[m
+Merge: 9ad8d52 19723e3
+Author: Lin Zhao <linzhao@uri.edu>
+Date:   Wed Oct 25 10:12:11 2023 -0400
+
+    Merge pull request #6 from uri-ocean-robotics/dev_frames
+    
+    Dev frames
+
+[33mcommit 19723e3a7802454a61854e01290836612f9d3051[m[33m ([m[1;31morigin/dev_frames[m[33m)[m
+Author: Lin Zhao <linzhao@uri.edu>
+Date:   Tue Oct 24 17:39:16 2023 +0000
+
+    add try_catch for tf
+
+[33mcommit 6e4de7b7035ecea7a35d91a248d12c8e10a53ab8[m
+Author: mingxi <mzhou@uri.edu>
+Date:   Sat Oct 21 09:30:41 2023 -0400
+
+    updated euler angle conversion between two fixed frames
+
+[33mcommit f77434a46c93f543a125d176ea5a7d763ed9db0e[m
+Author: Lin Zhao <linzhao@uri.edu>
+Date:   Fri Oct 20 14:41:51 2023 -0400
+
+    fix issue for eigen typo
+
+[33mcommit 6b067f45392cbb3a093413a3837fa46312482bd4[m
+Author: Lin Zhao <linzhao@uri.edu>
+Date:   Fri Oct 20 14:14:17 2023 -0400
+
+     fix eigen issue for angular velocity transform
+
+[33mcommit a5804945add5760f9d3ecd4e77d5231ed72c1194[m
+Author: Lin Zhao <linzhao@uri.edu>
+Date:   Fri Oct 20 13:27:48 2023 -0400
+
+    angular velocity conversion & frame_id conversion between setpoint and controller
+
+[33mcommit 9ad8d521b51f18780918c631f94b6f11b9b93a5a[m
+Author: mingxi <mzhou@uri.edu>
+Date:   Thu Sep 14 17:29:13 2023 -0400
+
+    fixed angular rate rotation matrix bug, added thruster allocation matrix contribution to m_world_link. Now you can set desired set point with different frame id (world or world_ned)
+
+[33mcommit 9785aa2cf5e91236db1716209afb73d17147f61c[m
+Author: Lin Zhao <linzhao@uri.edu>
+Date:   Thu Jun 1 10:47:39 2023 -0400
+
+    match to OSQP v0.6.3
+
+[33mcommit 0792c5fc51e5e005d36ef4fc2774e0aaf9a4e2d6[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Sat Jan 14 16:24:54 2023 +0100
+
+    docs: update citation
+
+[33mcommit da26f71bac83e21e3331cd4b3790fad1d47ae143[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Sat Oct 22 17:03:32 2022 -0400
+
+    docs: reduce readme
+
+[33mcommit 177934292834ab74c22631250523f3ed264d2e24[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Sat Oct 22 17:02:09 2022 -0400
+
+    chore: change branch name for mvp_msgs
+
+[33mcommit bbbfee6f3651d1b584627904e615b0fa3d5a007c[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Sat Oct 22 16:35:13 2022 -0400
+
+    docs: fix docs branch
+
+[33mcommit 26521036a2fd1a836dc91e7787cb27833dc81459[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Sat Oct 22 13:11:34 2022 -0400
+
+    docs: fix formatting
+
+[33mcommit 3f4b319a2c957db1b8f694ef3d48591fb18a556f[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Sat Oct 22 13:09:21 2022 -0400
+
+    docs: fix typo
+
+[33mcommit 7d0c376746916ea7f035b39b64e83798a5712b60[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Sat Oct 22 13:04:02 2022 -0400
+
+    chore: change branch names for github actions
+
+[33mcommit 3b26e5e2cc4786d2c88af7154678de62caa21ebb[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Sat Oct 22 13:02:28 2022 -0400
+
+    fix: migration artifacts
+
+[33mcommit 27a35c1297b8698d1fd5ab344aca116dfa2fdac4[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Sat Oct 22 12:56:45 2022 -0400
+
+    fix: migration artifacts
+
+[33mcommit b272d13eed4dbef9e1bfc19c3e61fe3829de75e8[m[33m ([m[1;31morigin/humble-devel[m[33m)[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Fri Oct 21 11:28:19 2022 -0400
+
+    docs: add installation and contributing
+
+[33mcommit 8e1fa98e43d399c02b9ebaf7e259d0ac7afc7b0d[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Fri Oct 21 01:48:18 2022 -0400
+
+    docs: url for image
+
+[33mcommit 4caf5297ffc17f791013a8d2389ff647523f58cb[m
+Merge: c96cc79 0096411
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Fri Oct 21 01:44:11 2022 -0400
+
+    Merge branch 'humble-devel'
+
+[33mcommit c96cc79771b8a8386a970434cc16378ecb2667f4[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Fri Oct 21 01:42:08 2022 -0400
+
+    docs: add sphinx documentation
+
+[33mcommit 00964110818492c159226ca527a84b3dd0d2f5d8[m
+Merge: 0248164 3ddffd7
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Mon Oct 17 02:06:03 2022 -0400
+
+    Merge branch 'noetic-devel' into humble-devel
+
+[33mcommit 3ddffd72e0d795f0a09307d071a21caeba97b61e[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Mon Oct 17 02:05:11 2022 -0400
+
+    docs: add base documentation
+
+[33mcommit d76513fe825c4398cc859e6b6e712721b9c21f60[m
+Merge: 8488427 6f2d2ae
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Tue Oct 11 16:14:33 2022 -0400
+
+    Merge pull request #7 from GSO-soslab/master
+    
+    Master
+
+[33mcommit 6f2d2ae5af533da8cd0984c17dccd09f7f7a3f7d[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Tue Oct 11 15:27:59 2022 -0400
+
+    chore: add mvp_msgs to ci/cd
+
+[33mcommit 1f230d0800aedd891e14bd3b8c8f871ff1b866e1[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Tue Oct 11 10:14:10 2022 -0400
+
+    docs: add citation
+
+[33mcommit 8488427028d6bb54e96c4df1f5b11f4efb318d76[m
+Merge: 2db6259 1cceddb
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Fri Oct 7 02:09:07 2022 -0400
+
+    Merge pull request #6 from GSO-soslab/master
+    
+    docs: update readme
+
+[33mcommit 1cceddb6862d459e6beff2e6e9092cfd0d606c7f[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Fri Oct 7 02:07:33 2022 -0400
+
+    docs: update readme
+
+[33mcommit 2db62597f62fa1a7f1678d892a8999b522f1661d[m
+Merge: ed9447c 71c9768
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Fri Oct 7 02:05:12 2022 -0400
+
+    Merge pull request #5 from GSO-soslab/master
+    
+    Master
+
+[33mcommit 71c976879f05a38a37084a8b7732f056adec1b5c[m
+Merge: a1faf7a ed9447c
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Fri Oct 7 02:04:20 2022 -0400
+
+    Merge branch 'master' of github.com:GSO-soslab/mvp_control
+
+[33mcommit a1faf7a54f1aebc2f60805465bbb3a74069f3abb[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Fri Oct 7 02:03:43 2022 -0400
+
+    docs: update readme
+
+[33mcommit ed9447c8fe19fdf451759265f648ffc46baac192[m
+Merge: 9f4786e 1110c9c
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Tue Sep 20 10:27:42 2022 -0400
+
+    Merge branch 'noetic-devel'
+
+[33mcommit 9f4786eb1a08cb265f4d8983805738253b301255[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Tue Sep 20 10:26:40 2022 -0400
+
+    docs: add funding
+
+[33mcommit 1110c9c5ea172b8456efca4020e732ce5b7ab144[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Tue Sep 20 10:26:40 2022 -0400
+
+    docs: add funding
+
+[33mcommit 0248164fa3d5a0e760d802fd7d57eb0f6e036d49[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Tue Sep 20 10:24:22 2022 -0400
+
+    migrate: mvp_msgs
+
+[33mcommit 59ec458afb3a46622e60bd62b5074ea54bc5b2f1[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Tue Sep 13 10:37:02 2022 -0400
+
+    docs: fix style
+
+[33mcommit a3b5cc4472f8478a5e99a1bdfa9fd5ac4e9b4952[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Tue Sep 13 10:28:16 2022 -0400
+
+    docs: add configuration
+
+[33mcommit 93877e2f02bfd579acbf3bece1ba646c10fa6232[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Thu Sep 1 12:12:47 2022 -0400
+
+    docs: add copyright
+
+[33mcommit 8cc397d148aa86bb809bceac644002cc2aff06a5[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Thu Sep 1 12:03:08 2022 -0400
+
+    docs: add license
+
+[33mcommit 4e2a80ab8af5fe879694edcfa2c5f32f101a39f3[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Thu Jun 23 20:56:41 2022 -0400
+
+    chore: remove redundant line
+
+[33mcommit fd1210bd0c9e8719fbc94be672febe424be590f2[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Wed Jun 22 13:58:02 2022 -0400
+
+    fix: control allocation torque contribution
+
+[33mcommit 13b2a6a512a2118cf8605466dcfd4ec3e5ad9148[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Thu Jun 2 11:45:46 2022 -0400
+
+    fix: quadratic programming limits
+
+[33mcommit d70f005c74fdf0584f3a6ba5c2ec5579a5aeb5df[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Wed May 25 16:08:15 2022 -0400
+
+    fix: remove reduntant check
+
+[33mcommit 71cf673ea8d2bed3980ccc7fe85e2210618da195[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Tue May 24 16:48:20 2022 -0400
+
+    feat: add thrust limit
+
+[33mcommit c1a3ae11707fce11521c9c4c3fd2b14649b66fa9[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Fri Apr 22 09:44:28 2022 -0400
+
+    chore: add github workflow
+
+[33mcommit cf58370c731f0acca928f1a8b66ab85ac0d06dd4[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Mon Apr 18 18:25:37 2022 -0400
+
+    fix: change frame id
+
+[33mcommit 3b9d1ed4deda6292077dfca2ac7259ba118d6743[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Sat Apr 2 01:19:05 2022 -0400
+
+    feat: add angular rate
+
+[33mcommit a4e50055eafd9eb4005adc42126e54d342c7b2fa[m
+Author: Emir Cem Gezer <emircem.gezer@gmail.com>
+Date:   Wed Mar 23 12:23:16 2022 -0400
+
+    feat: refactor
