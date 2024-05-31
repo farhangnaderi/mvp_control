@@ -416,7 +416,11 @@ namespace ctrl {
         bool f_cb_srv_get_controller_state(
             std_srvs::Trigger::Request &req,
             std_srvs::Trigger::Response &resp);
+<<<<<<< HEAD
 
+=======
+            
+>>>>>>> preserve-commit
         /**
          * @brief Get active control mode
          * @param req Empty request

@@ -77,7 +77,7 @@ namespace ctrl {
 
         Eigen::VectorXd m_thruster_vector;
 
-        std::string m_tf_prefix; 
+        std::string m_tf_prefix_thruster; 
 
         //! @brief Controlled grequency
         double m_controller_frequency; 
@@ -186,7 +186,7 @@ namespace ctrl {
          * @param prefix The new TF prefix value to set
          */
         void set_tf_prefix(const std::string &prefix) {
-            m_tf_prefix = prefix;
+            m_tf_prefix_thruster = prefix;
         }
 
         /**
@@ -195,7 +195,7 @@ namespace ctrl {
          * @return The current TF prefix value
          */
         std::string get_tf_prefix() const {
-            return m_tf_prefix;
+            return m_tf_prefix_thruster;
         }
 
         /** @brief Trivial getter for thruster articulation vector
