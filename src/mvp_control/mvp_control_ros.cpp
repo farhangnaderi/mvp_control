@@ -183,6 +183,19 @@ MvpControlROS::MvpControlROS()
         )
     );
 
+    m_get_controller_state_server = m_nh.advertiseService
+        <std_srvs::Trigger::Request,
+        std_srvs::Trigger::Response>
+    (
+        SERVICE_GET_CONTROLLER_STATE,
+        std::bind(
+            &MvpControlROS::f_cb_srv_get_controller_state,
+            this,
+            std::placeholders::_1,
+            std::placeholders::_2
+        )
+    );
+
     m_get_active_mode_server = m_nh.advertiseService
         <mvp_msgs::GetControlMode::Request,
         mvp_msgs::GetControlMode::Response>
@@ -1119,7 +1132,7 @@ void MvpControlROS::f_control_loop() {
                             // Compute the angle in radians
                             current_angle = acos(cg_x_direction.dot(thruster_x_direction));
                             //Push this so mvp_control OSQP can use it:
-                            m_mvp_control->set_current_angle(joint_name, current_angle);
+                            //m_mvp_control->set_current_angle(joint_name, current_angle);
 
                         } catch (tf2::TransformException &ex) {
                             ROS_WARN("%s", ex.what());
@@ -1564,6 +1577,19 @@ bool MvpControlROS::f_cb_srv_disable(
 
     ROS_INFO("Controller disabled!");
     m_enabled = false;
+
+    return true;
+}
+
+bool MvpControlROS::f_cb_srv_get_controller_state(
+        std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &resp) {
+    resp.success = true;
+    if(m_enabled){
+         resp.message = "enabled";
+    }
+    else{
+        resp.message = "disabled";
+    }
 
     return true;
 }

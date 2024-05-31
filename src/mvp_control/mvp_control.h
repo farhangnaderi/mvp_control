@@ -82,8 +82,8 @@ namespace ctrl {
         //! @brief Controlled grequency
         double m_controller_frequency; 
 
-        //! @brief Current angles for each joint or thruster
-        std::unordered_map<std::string, double> m_current_angles;
+        // //! @brief Current angles for each joint or thruster
+        // std::unordered_map<std::string, double> m_current_angles;
         
         /** @brief Calculates PID using #MimoPID
          *
@@ -104,6 +104,14 @@ namespace ctrl {
          * @return
          */
         bool f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u);
+
+        /** @brief Optimize thrust for given control input
+         *
+         * @param t Optimized forces for each thruster. This is the return value.
+         * @param u Control input
+         * @return
+         */
+        bool f_optimize_thrust_2(Eigen::VectorXd *t, Eigen::VectorXd u);
 
         /** @brief Error function for #MvpControl::m_pid object
          *

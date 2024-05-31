@@ -43,6 +43,7 @@
 
 #include "std_msgs/Float32.h"
 #include "std_srvs/Empty.h"
+#include "std_srvs/Trigger.h"
 #include "nav_msgs/Odometry.h"
 #include "dynamic_reconfigure/server.h"
 
@@ -163,6 +164,9 @@ namespace ctrl {
 
         //! @brief Disable controller ros service server
         ros::ServiceServer m_disable_controller_server;
+
+        //! @brief get controller state service server
+        ros::ServiceServer m_get_controller_state_server;
 
         //! @brief Active mode getter ros service server
         ros::ServiceServer m_get_active_mode_server;
@@ -400,6 +404,18 @@ namespace ctrl {
         bool f_cb_srv_disable(
             std_srvs::Empty::Request req,
             std_srvs::Empty::Response resp);
+
+        /**
+         * @brief get controller state (on/off)
+         *
+         * @param req Trivial empty request
+         * @param resp Trivial empty response
+         * @return true
+         * @return false
+         */
+        bool f_cb_srv_get_controller_state(
+            std_srvs::Trigger::Request &req,
+            std_srvs::Trigger::Response &resp);
 
         /**
          * @brief Get active control mode
