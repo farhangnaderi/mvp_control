@@ -82,9 +82,12 @@ namespace ctrl {
         //! @brief Controlled grequency
         double m_controller_frequency; 
 
-        // //! @brief Current angles for each joint or thruster
-        // std::unordered_map<std::string, double> m_current_angles;
-        
+        //! @brief Index of the current thruster
+        int m_thruster_index; 
+
+        //! @brief Store the current angles for each servo
+        std::vector<double> m_current_angles; //
+
         /** @brief Calculates PID using #MimoPID
          *
          * Measures the error between desired and current state.
@@ -287,19 +290,22 @@ namespace ctrl {
         void
         update_desired_state(const decltype(m_desired_state) &desired_state);
 
-        /** @brief Set the current angle
-        *
-        * Updates the current angle of the system.
-        * @param angle The new current angle to set.
-        */
-        void set_current_angle(const std::string& joint_name, double angle);
 
-        /** @brief Get the current angle
-        *
-        * Retrieves the current angle of the system.
-        * @return The current angle.
-        */
-        double get_current_angle(const std::string& joint_name) const;     
+        /** @brief Set the current angle.
+         *
+         * Updates the current angle of the specified thruster.
+         * @param m_thruster_index Pointer to the index of the thruster.
+         * @param angle The new current angle to set.
+         */
+        void set_current_angle(const int* m_thruster_index, double angle);
+
+        /** @brief Get the current angle.
+         *
+         * Retrieves the current angle of the specified thruster.
+         * @param m_thruster_index Pointer to the index of the thruster.
+         * @return The current angle.
+         */
+        double get_current_angle(const int* m_thruster_index) const;
 
         /** @brief Set the lower limit for OSQP boundary conditions
         *

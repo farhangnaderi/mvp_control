@@ -1102,6 +1102,8 @@ void MvpControlROS::f_control_loop() {
             for(int i = 0; i < m_thrusters.size(); ) {
                 auto is_articulated = m_thrusters.at(i)->get_is_articulated();
 
+                int index = i;
+
                 if(is_articulated == 1) {
                     if(i + 1 < m_thrusters.size()) {
                         auto combined_force = sqrt(pow(needed_forces(i), 2) + pow(needed_forces(i + 1), 2));
@@ -1131,8 +1133,11 @@ void MvpControlROS::f_control_loop() {
 
                             // Compute the angle in radians
                             current_angle = acos(cg_x_direction.dot(thruster_x_direction));
+
                             //Push this so mvp_control OSQP can use it:
                             //m_mvp_control->set_current_angle(joint_name, current_angle);
+
+                            m_mvp_control->set_current_angle(&index, current_angle);
 
                         } catch (tf2::TransformException &ex) {
                             ROS_WARN("%s", ex.what());
@@ -1153,6 +1158,8 @@ void MvpControlROS::f_control_loop() {
                     }
                 } else {
                     m_thrusters.at(i)->request_force(needed_forces(i));
+                    //not articulated so no rotation state
+                    m_mvp_control->set_current_angle(&index, 0);
                     i++; // Move to the next thruster
                 }
 
