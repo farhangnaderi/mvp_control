@@ -175,12 +175,19 @@ bool MvpControl::f_calculate_pid(Eigen::VectorXd *u, double dt)
     return m_pid->calculate(u, m_desired_state, m_system_state, dt);
 }
 
+double normalize_angle(double angle) {
+// Normalize angle to be within the range [0, 2 * M_PI)
+    double two_pi = 2 * M_PI;
+    return angle - two_pi * std::floor(angle / two_pi);
+}
 
 bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
 
-    // Ensure m_current_angles is initialized to the same size as m_thruster_vector and filled with zeros
-    if (m_current_angles.size() != m_thruster_vector.size()) {
+    // Static boolean flag to ensure initialization only happens once
+    static bool is_initialized = false;
+    if (!is_initialized) {
         m_current_angles.resize(m_thruster_vector.size(), 0.0);
+        is_initialized = true;
     }
 
     // Check sizes of the inputs
@@ -228,8 +235,8 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
     const double kInfinity = std::numeric_limits<double>::infinity();
 
     const double omega = 5.24;
-    const double gamma_lower = -2.0;
-    const double gamma_upper = 2.0;
+    const double gamma_lower = -2.1; //-120deg (6.28-3.10 radians)
+    const double gamma_upper = 2.1; //120deg
     const double deltaT = 1 / m_controller_frequency;
     int pair_count = 0;
     int single_count = 0;
@@ -268,20 +275,22 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
     A_triplets.reserve(m_thruster_vector.size() * 9); // Estimate the required size
 
     const double omega_deltaT = omega * deltaT;
+    double beta = 0.0;
+
+
 
     for (size_t i = 0; i < m_thruster_vector.size(); ++i) {
         int thruster_setting = static_cast<int>(m_thruster_vector[i]);
         //std::string joint_name = m_tf_prefix_thruster; // + m_thrusters.at(i)->get_servo_joints().at(0);
 
-        double beta = 0.0;
-        //if (i < m_current_angles.size()) {
-            beta = m_current_angles[i];
-        //}
+        beta = m_current_angles[i];
         int base_idx = 0;
 
         //ROS_INFO("m_tf_prefix_thruster: %s", m_tf_prefix_thruster.c_str());
         //ROS_INFO("Haloooooooooooooooooooo");
         //ROS_INFO("Current angle beta: %f", beta);
+        double normalized_alpha_lower_beta = normalize_angle(omega_deltaT + beta);
+        double normalized_alpha_upper_beta = normalize_angle(-omega_deltaT + beta);
 
         switch (thruster_setting) {
             case 0:
@@ -304,10 +313,22 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
                 A_triplets.emplace_back(base_idx + 2, i, -omega_deltaT);
                 A_triplets.emplace_back(base_idx + 1, i + 1, 1.0);
                 A_triplets.emplace_back(base_idx + 2, i + 1, -1.0);
-                A_triplets.emplace_back(base_idx + 3, i, -std::min(omega_deltaT, gamma_upper + beta));
+                A_triplets.emplace_back(base_idx + 3, i, -std::min(omega_deltaT, gamma_upper - beta));
                 A_triplets.emplace_back(base_idx + 4, i, std::max(-omega_deltaT, gamma_lower + beta));
+                //A_triplets.emplace_back(base_idx + 3, i, tan(-std::min(gamma_upper, normalized_alpha_upper_beta)));
+                //A_triplets.emplace_back(base_idx + 4, i, tan(std::max(gamma_lower, normalized_alpha_lower_beta)));
                 A_triplets.emplace_back(base_idx + 3, i + 1, 1.0);
                 A_triplets.emplace_back(base_idx + 4, i + 1, -1.0);
+
+                // Log the values
+               //ROS_INFO_STREAM("base_idx: " << base_idx);
+                ROS_INFO_STREAM("i: " << i);
+                ROS_INFO_STREAM("omega_deltaT: " << omega_deltaT);
+                ROS_INFO_STREAM("gamma_upper: " << gamma_upper);
+                ROS_INFO_STREAM("gamma_lower: " << gamma_lower);
+                ROS_INFO_STREAM("beta: " << beta);
+                ROS_INFO_STREAM("-std::min(omega_deltaT, gamma_upper - beta)): " << -std::min(omega_deltaT, gamma_upper - beta));
+                ROS_INFO_STREAM("std::max(-omega_deltaT, gamma_lower + beta)): " << std::max(-omega_deltaT, gamma_lower + beta));
 
                 // Set bounds for the constraints associated with thruster_setting 1
                 if (base_idx >= qp_instance.lower_bounds.size() || base_idx + 4 >= qp_instance.upper_bounds.size()) {
