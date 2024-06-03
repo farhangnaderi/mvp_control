@@ -1131,8 +1131,16 @@ void MvpControlROS::f_control_loop() {
 
                             Eigen::Vector3d cg_x_direction(1, 0, 0);  // X direction in cg_link's x-z plane
 
-                            // Compute the angle in radians
-                            current_angle = acos(cg_x_direction.dot(thruster_x_direction));
+                            // Compute the angle in radians using dot product
+                            double angle = acos(cg_x_direction.dot(thruster_x_direction));
+
+                            // Determine the sign of the angle using cross product
+                            Eigen::Vector3d cross_product = cg_x_direction.cross(thruster_x_direction);
+                            if (cross_product.y() < 0) {
+                                angle = -angle;
+                            }
+
+                            current_angle = angle;
 
                             //Push this so mvp_control OSQP can use it:
                             //m_mvp_control->set_current_angle(joint_name, current_angle);

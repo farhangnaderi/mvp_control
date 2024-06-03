@@ -313,8 +313,8 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
                 A_triplets.emplace_back(base_idx + 2, i, -omega_deltaT);
                 A_triplets.emplace_back(base_idx + 1, i + 1, 1.0);
                 A_triplets.emplace_back(base_idx + 2, i + 1, -1.0);
-                A_triplets.emplace_back(base_idx + 3, i, -std::min(omega_deltaT, gamma_upper - beta));
-                A_triplets.emplace_back(base_idx + 4, i, std::max(-omega_deltaT, gamma_lower + beta));
+                A_triplets.emplace_back(base_idx + 3, i,  -std::min(omega_deltaT,gamma_upper - beta));
+                A_triplets.emplace_back(base_idx + 4, i, std::max(-omega_deltaT, gamma_lower - beta));
                 //A_triplets.emplace_back(base_idx + 3, i, tan(-std::min(gamma_upper, normalized_alpha_upper_beta)));
                 //A_triplets.emplace_back(base_idx + 4, i, tan(std::max(gamma_lower, normalized_alpha_lower_beta)));
                 A_triplets.emplace_back(base_idx + 3, i + 1, 1.0);
@@ -322,13 +322,13 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
 
                 // Log the values
                //ROS_INFO_STREAM("base_idx: " << base_idx);
-                ROS_INFO_STREAM("i: " << i);
+                //ROS_INFO_STREAM("i: " << i);
                 ROS_INFO_STREAM("omega_deltaT: " << omega_deltaT);
                 ROS_INFO_STREAM("gamma_upper: " << gamma_upper);
                 ROS_INFO_STREAM("gamma_lower: " << gamma_lower);
                 ROS_INFO_STREAM("beta: " << beta);
-                ROS_INFO_STREAM("-std::min(omega_deltaT, gamma_upper - beta)): " << -std::min(omega_deltaT, gamma_upper - beta));
-                ROS_INFO_STREAM("std::max(-omega_deltaT, gamma_lower + beta)): " << std::max(-omega_deltaT, gamma_lower + beta));
+                //ROS_INFO_STREAM("-tan(gamma_upper - beta): " << -tan(gamma_upper - beta));
+                //ROS_INFO_STREAM("tan( gamma_lower + beta): " << tan( gamma_upper + beta));
 
                 // Set bounds for the constraints associated with thruster_setting 1
                 if (base_idx >= qp_instance.lower_bounds.size() || base_idx + 4 >= qp_instance.upper_bounds.size()) {
