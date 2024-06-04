@@ -1136,7 +1136,7 @@ void MvpControlROS::f_control_loop() {
 
                             // Determine the sign of the angle using cross product
                             Eigen::Vector3d cross_product = cg_x_direction.cross(thruster_x_direction);
-                            if (cross_product.y() < 0) {
+                            if (cross_product.z() < 0) {
                                 angle = -angle;
                             }
 

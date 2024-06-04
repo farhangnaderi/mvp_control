@@ -85,6 +85,9 @@ namespace ctrl {
         //! @brief Index of the current thruster
         int m_thruster_index; 
 
+        //! @brief the angle between the thruster and the x-axis
+        double beta;
+
         //! @brief Store the current angles for each servo
         std::vector<double> m_current_angles; //
 

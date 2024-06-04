@@ -235,8 +235,8 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
     const double kInfinity = std::numeric_limits<double>::infinity();
 
     const double omega = 5.24;
-    const double gamma_lower = -2.1; //-120deg (6.28-3.10 radians)
-    const double gamma_upper = 2.1; //120deg
+    const double gamma_lower = -1.57; //-120deg (6.28-3.10 radians)
+    const double gamma_upper = 1.57; //120deg
     const double deltaT = 1 / m_controller_frequency;
     int pair_count = 0;
     int single_count = 0;
@@ -275,7 +275,7 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
     A_triplets.reserve(m_thruster_vector.size() * 9); // Estimate the required size
 
     const double omega_deltaT = omega * deltaT;
-    double beta = 0.0;
+
 
 
 
@@ -313,8 +313,8 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
                 A_triplets.emplace_back(base_idx + 2, i, -omega_deltaT);
                 A_triplets.emplace_back(base_idx + 1, i + 1, 1.0);
                 A_triplets.emplace_back(base_idx + 2, i + 1, -1.0);
-                A_triplets.emplace_back(base_idx + 3, i,  -std::min(omega_deltaT,gamma_upper - beta));
-                A_triplets.emplace_back(base_idx + 4, i, std::max(-omega_deltaT, gamma_lower - beta));
+                A_triplets.emplace_back(base_idx + 3, i,  tan(-std::min(omega_deltaT,gamma_upper - beta)));
+                A_triplets.emplace_back(base_idx + 4, i, tan(std::max(-omega_deltaT, gamma_lower - beta)));
                 //A_triplets.emplace_back(base_idx + 3, i, tan(-std::min(gamma_upper, normalized_alpha_upper_beta)));
                 //A_triplets.emplace_back(base_idx + 4, i, tan(std::max(gamma_lower, normalized_alpha_lower_beta)));
                 A_triplets.emplace_back(base_idx + 3, i + 1, 1.0);
