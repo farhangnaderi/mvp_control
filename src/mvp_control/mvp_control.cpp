@@ -176,19 +176,18 @@ bool MvpControl::f_calculate_pid(Eigen::VectorXd *u, double dt)
 }
 
 bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
-    // Static initialization flag
     static bool is_initialized = false;
     if (!is_initialized) {
         m_current_angles.resize(m_thruster_vector.size(), 0.0);
         is_initialized = true;
     }
 
-    // Control allocation matrix and control vector
+    // Allocate and initialize control matrices and vectors
     Eigen::MatrixXd T(m_controlled_freedoms.size(), m_control_allocation_matrix.cols());
     Eigen::VectorXd U(m_controlled_freedoms.size());
 
+    // Scoped lock for thread safety when accessing shared resources
     {
-        // Scoped lock to ensure thread safety
         std::scoped_lock lock(m_allocation_matrix_lock, m_controlled_freedoms_lock);
         for (int i = 0; i < m_controlled_freedoms.size(); ++i) {
             int idx = m_controlled_freedoms.at(i);
@@ -215,18 +214,22 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
     }
     ROS_INFO_STREAM(ss.str());
 
-    // Initialize constraint matrix and bounds
     const double deltaT = 1.0 / m_controller_frequency;
 
-    // Calculate pair and single counts
-    for (size_t i = 0; i + 1 < m_thruster_vector.size(); ++i) {
-        if (m_thruster_vector(i) == 1 && m_thruster_vector(i + 1) == 2) {
-            pair_count++;
-            i++;
-        } else {
-            single_count++;
+    // Calculate the number of pairs and singles in the thruster vector
+    auto [pair_count, single_count] = [this] {
+        int pairs = 0;
+        int singles = 0;
+        for (int i = 0; i + 1 < m_thruster_vector.size(); ++i) {
+            if (m_thruster_vector(i) == 1 && m_thruster_vector(i + 1) == 2) {
+                pairs++;
+                i++; // Skip the next element since it forms a pair with the current element
+            } else {
+                singles++;
+            }
         }
-    }
+        return std::make_pair(pairs, singles);
+    }();
 
     // Check the last element if it's not part of the last checked pair
     if (m_thruster_vector.size() > 0 && 
@@ -238,7 +241,7 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
     int kNumConstraints = 3 * pair_count + single_count;
     int kNumVariables = m_control_allocation_matrix.cols();
 
-    //helper for adjusted dimension boundries vector
+    // Helper for adjusted dimension boundaries vector
     std::vector<int> thruster_case_values;
     thruster_case_values.reserve(kNumConstraints);
 
@@ -260,6 +263,7 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
         }
     }
 
+    // Setup OSQP solver instance
     osqp::OsqpInstance qp_instance;
     qp_instance.objective_matrix = Q.sparseView();
     qp_instance.objective_vector = c;
@@ -267,13 +271,14 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
     qp_instance.upper_bounds.resize(kNumConstraints);
 
     Eigen::SparseMatrix<double> A_sparse(kNumConstraints, kNumVariables);
-    A_sparse.setZero(); //all constraint matrix values set to 0
+    A_sparse.setZero(); // Set all constraint matrix values to 0
     std::vector<Eigen::Triplet<double>> A_triplets;
 
     const double omega_deltaT = omega * deltaT;
-    size_t j = 0;  //row  counter
+    size_t j = 0;  // Row counter
 
-    for (size_t i = 0; i < kNumConstraints; ++i) {
+    // Construct constraint matrix and bounds
+    for (size_t i = 0; i < m_thruster_vector.size(); ++i) {
         int thruster_setting = static_cast<int>(m_thruster_vector[i]);
         double beta = m_current_angles[i];
         switch (thruster_setting) {
@@ -299,6 +304,7 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
                 j += 3;
                 break;
             case 2:
+                // Add any specific handling for thruster setting 2 if necessary
                 break;
             default:
                 ROS_ERROR_STREAM("Unexpected thruster setting: " << thruster_setting);
@@ -306,9 +312,11 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
         }
     }
 
+    // Populate constraint matrix
     A_sparse.setFromTriplets(A_triplets.begin(), A_triplets.end());
     qp_instance.constraint_matrix = A_sparse;
 
+    // Initialize OSQP solver
     osqp::OsqpSolver solver;
     osqp::OsqpSettings settings;
     settings.verbose = false;
@@ -319,8 +327,10 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
         return false;
     }
 
+    // Solve the quadratic programming problem
     osqp::OsqpExitCode exitCode = solver.Solve();
 
+    // Handle solver exit codes
     switch (exitCode) {
         case osqp::OsqpExitCode::kOptimal:
             *t = solver.primal_solution();

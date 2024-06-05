@@ -97,12 +97,6 @@ namespace ctrl {
         //! @brief Adjusted lower limit for thruster constraints
         std::vector<int> m_adjusted_lower_limit;
 
-        //! @brief holding decoupled thrusters count
-        int pair_count;
-
-        //! @brief non-articulated thrusters count
-        int single_count;
-
         //! @brief Constants for solver
         static constexpr double kInfinity = std::numeric_limits<double>::infinity();
         static constexpr double omega = 5.24;
