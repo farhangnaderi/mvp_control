@@ -71,13 +71,26 @@ namespace ctrl {
         //! @brief Controlled freedoms
         std::vector<int> m_controlled_freedoms;
 
+        //! @brief Servo speeds for OSQP constraints
+        Eigen::VectorXd m_servo_speed;
+
+        //! @brief Upper limits for OSQP forces boundary conditions
         Eigen::VectorXd m_upper_limit;
 
+        //! @brief Lower limits for OSQP forces boundary conditions
         Eigen::VectorXd m_lower_limit;
 
+        //! @brief Upper angle limits vector
+        Eigen::VectorXd m_upper_angle;
+
+        //! @brief Lower angle limits vector
+        Eigen::VectorXd m_lower_angle;
+
+        //! @brief Vector representing thruster configuration
         Eigen::VectorXd m_thruster_vector;
 
-        std::string m_tf_prefix_thruster; 
+        //! @brief TF prefix for thruster transformations
+        std::string m_tf_prefix_thruster;
 
         //! @brief Controlled grequency
         double m_controller_frequency; 
@@ -99,9 +112,6 @@ namespace ctrl {
 
         //! @brief Constants for solver
         static constexpr double kInfinity = std::numeric_limits<double>::infinity();
-        static constexpr double omega = 5.24;
-        static constexpr double gamma_lower = -2.1;
-        static constexpr double gamma_upper = 2.1;
 
         /** @brief Calculates PID using #MimoPID
          *
@@ -336,6 +346,26 @@ namespace ctrl {
         */
         void set_upper_limit(const decltype(m_upper_limit) &upper_limit);
 
+        /** @brief Set the lower angle limit
+         *
+         * Updates the lower angle limit of the system.
+         * @param lower_angle The new lower angle limit to set.
+         */
+        void set_lower_angle(const decltype(m_lower_angle) &lower_angle);
+
+        /** @brief Set the upper angle limit
+         *
+         * Updates the upper angle limit of the system.
+         * @param upper_angle The new upper angle limit to set.
+         */
+        void set_upper_angle(const decltype(m_upper_angle) &upper_angle);
+
+        /** @brief Set the servo speed
+         *
+         * Updates the servo speed of the system.
+         * @param servo_speed The new servo speed to set.
+         */
+        void set_servo_speed(const decltype(m_servo_speed) &servo_speed);
 
     };
 

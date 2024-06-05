@@ -110,12 +110,22 @@ void MvpControl::set_desired_state(
 
 void MvpControl::set_lower_limit(const decltype(m_lower_limit) &lower_limit) {
     m_lower_limit = lower_limit;
-    //std::cout << "Lower limit set to: " << m_lower_limit.transpose() << std::endl;
 }
 
 void MvpControl::set_upper_limit(const decltype(m_upper_limit) &upper_limit) {
     m_upper_limit = upper_limit;
-    std::cout << "Upper limit set to: " << m_upper_limit.transpose() << std::endl;
+}
+
+void MvpControl::set_lower_angle(const decltype(m_lower_angle) &lower_angle) {
+    m_lower_angle = lower_angle;
+}
+
+void MvpControl::set_upper_angle(const decltype(m_upper_angle) &upper_angle) {
+    m_upper_angle = upper_angle;
+}
+
+void MvpControl::set_servo_speed(const decltype(m_servo_speed) &servo_speed) {
+    m_servo_speed = servo_speed;
 }
 
 void MvpControl::set_current_angle(const int* m_thruster_index, double angle) {
@@ -204,16 +214,6 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
     Eigen::MatrixXd Q = 2 * T.transpose() * T;
     Eigen::VectorXd c = -2 * T.transpose() * U;
 
-    ROS_INFO_STREAM("m_thruster_vector: " << m_thruster_vector.transpose());
-
-    // Log current angles
-    std::stringstream ss;
-    ss << "Current Angles vector: ";
-    for (const auto &angle : m_current_angles) {
-        ss << angle << " ";
-    }
-    ROS_INFO_STREAM(ss.str());
-
     const double deltaT = 1.0 / m_controller_frequency;
 
     // Calculate the number of pairs and singles in the thruster vector
@@ -274,7 +274,6 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
     A_sparse.setZero(); // Set all constraint matrix values to 0
     std::vector<Eigen::Triplet<double>> A_triplets;
 
-    const double omega_deltaT = omega * deltaT;
     size_t j = 0;  // Row counter
 
     // Construct constraint matrix and bounds
@@ -290,18 +289,18 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
                 break;
             case 1:
                 A_triplets.emplace_back(j, i, 1.0);
-                A_triplets.emplace_back(j + 1, i, tan(-std::min(omega_deltaT, gamma_upper - beta)));
-                A_triplets.emplace_back(j + 2, i, tan(std::max(-omega_deltaT, gamma_lower - beta)));
+                A_triplets.emplace_back(j + 1, i, tan(-std::min(m_servo_speed[i] * deltaT , m_upper_angle[i] - beta)));
+                A_triplets.emplace_back(j + 2, i, tan(std::max(-m_servo_speed[i] * deltaT , m_lower_angle[i] - beta)));
                 A_triplets.emplace_back(j + 1, i + 1, 1.0);
                 A_triplets.emplace_back(j + 2, i + 1, -1.0);
 
                 qp_instance.lower_bounds[j] = 0;
-                qp_instance.upper_bounds[j] = m_adjusted_upper_limit[j] * std::cos(omega_deltaT);
+                qp_instance.upper_bounds[j] = m_adjusted_upper_limit[j] * std::cos(m_servo_speed[i] * deltaT);
                 qp_instance.lower_bounds[j + 1] = -kInfinity;
                 qp_instance.upper_bounds[j + 1] = 0;
                 qp_instance.lower_bounds[j + 2] = -kInfinity;
                 qp_instance.upper_bounds[j + 2] = 0;
-                j += 3;
+                j += 3; //jumping the constraint rows
                 break;
             case 2:
                 // Add any specific handling for thruster setting 2 if necessary

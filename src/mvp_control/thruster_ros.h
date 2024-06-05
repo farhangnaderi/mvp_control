@@ -108,14 +108,22 @@ namespace ctrl {
         //! @brief Polynomial solver
         PolynomialSolver::Ptr m_poly_solver;
 
+        //! @brief Servo speed rad/s
+        double m_omega;
+
+        //! @brief Maximum force limit
         double m_force_max;
 
+        //! @brief Minimum force limit
         double m_force_min;
 
+        //! @brief Maximum angle limit
         double m_angle_max;
 
+        //! @brief Minimum angle limit
         double m_angle_min;
 
+        //! @brief If the thruster is articulated
         int is_articulated;
         
     public:

@@ -469,6 +469,7 @@ void MvpControlROS::f_generate_thrusters() {
         std::string servo_joint_desired_topic_id,servo_command_topic_id;
         std::vector<double> poly;
         double force_max, force_min;
+        double angle_max, angle_min, omega;
 
         // Thrust command topic configuration
         m_pnh.param<std::string>(
@@ -503,6 +504,12 @@ void MvpControlROS::f_generate_thrusters() {
             poly, std::vector<double>());
         t->get_poly_solver()->set_coeff(poly);
 
+        // Servo speeds in rad/s
+        m_pnh.param<double>(std::string(CONF_THRUSTER_SERVO_SPEEDS) + "/" + t->get_id(), 
+        omega, 
+        0.0);
+        t->m_omega = omega;
+
         // Force limits configuration
         m_pnh.param<double>(
             std::string(CONF_THRUSTER_LIMITS) + "/" + t->get_id() + "/" + CONF_THRUSTER_MAX, 
@@ -515,6 +522,24 @@ void MvpControlROS::f_generate_thrusters() {
             force_min, 
             -10.0);
         t->m_force_min = force_min;
+
+        /*
+        Angle limits configuration
+        For safety the default angle values are passed zero 
+        in case nothing available in config file.
+        */
+
+        m_pnh.param<double>(
+            std::string(CONF_SERVO_LIMITS) + "/" + t->get_id() + "/" + CONF_SERVO_MAX, 
+            angle_max, 
+            0.0);
+        t->m_angle_max = angle_max;
+
+        m_pnh.param<double>(
+            std::string(CONF_SERVO_LIMITS) + "/" + t->get_id() + "/" + CONF_SERVO_MIN, 
+            angle_min, 
+            0.0);
+        t->m_angle_min = angle_min;
     }
 }
 
@@ -910,6 +935,44 @@ bool MvpControlROS::f_update_control_allocation_matrix() {
     m_mvp_control->set_lower_limit(lower_limit);
 
     m_mvp_control->set_upper_limit(upper_limit);
+
+    // Define vectors for upper and lower angle limits
+    Eigen::VectorXd angle_upper_limit(m_thrusters.size());
+    Eigen::VectorXd angle_lower_limit(m_thrusters.size());
+
+    for(int i = 0; i < m_thrusters.size(); i++) {
+        // Check if m_angle_max is available
+        if (m_thrusters[i]->m_angle_max != -1) {
+            angle_upper_limit[i] = m_thrusters[i]->m_angle_max;
+        } else {
+            angle_upper_limit[i] = 0;
+        }
+
+        // Check if m_angle_min is available
+        if (m_thrusters[i]->m_angle_min != -1) {
+            angle_lower_limit[i] = m_thrusters[i]->m_angle_min;
+        } else {
+            angle_lower_limit[i] = 0;
+        }
+    }
+
+    m_mvp_control->set_lower_angle(angle_lower_limit);
+    
+    m_mvp_control->set_upper_angle(angle_upper_limit);
+
+    // Define vector for servo speeds
+    Eigen::VectorXd servo_speed(m_thrusters.size());
+
+    for(int i = 0; i < m_thrusters.size(); i++) {
+        // Check if m_angle_min is available
+        if (m_thrusters[i]->m_omega != -1) {
+            servo_speed[i] = m_thrusters[i]->m_omega;
+        } else {
+            servo_speed[i] = 0;
+        }
+    }
+
+    m_mvp_control->set_servo_speed(servo_speed);
 
     return true;
 }
