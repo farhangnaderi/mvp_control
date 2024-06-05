@@ -91,6 +91,18 @@ namespace ctrl {
         //! @brief Store the current angles for each servo
         std::vector<double> m_current_angles; //
 
+        //! @brief Adjusted upper limit for thruster constraints
+        std::vector<int> m_adjusted_upper_limit;
+
+        //! @brief Adjusted lower limit for thruster constraints
+        std::vector<int> m_adjusted_lower_limit;
+
+        //! @brief Constants for solver
+        static constexpr double kInfinity = std::numeric_limits<double>::infinity();
+        static constexpr double omega = 5.24;
+        static constexpr double gamma_lower = -2.1;
+        static constexpr double gamma_upper = 2.1;
+
         /** @brief Calculates PID using #MimoPID
          *
          * Measures the error between desired and current state.
