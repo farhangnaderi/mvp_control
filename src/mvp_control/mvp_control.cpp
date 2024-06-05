@@ -218,9 +218,6 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
     // Initialize constraint matrix and bounds
     const double deltaT = 1.0 / m_controller_frequency;
 
-    int pair_count = 0;
-    int single_count = 0;
-
     // Calculate pair and single counts
     for (size_t i = 0; i + 1 < m_thruster_vector.size(); ++i) {
         if (m_thruster_vector(i) == 1 && m_thruster_vector(i + 1) == 2) {
@@ -238,36 +235,12 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
         single_count++;
     }
 
+    int kNumConstraints = 3 * pair_count + single_count;
+    int kNumVariables = m_control_allocation_matrix.cols();
+
+    //helper for adjusted dimension boundries vector
     std::vector<int> thruster_case_values;
-    thruster_case_values.reserve(3 * pair_count + single_count);
-
-    // // Populate thruster case values vector
-    // for (size_t i = 0; i < m_thruster_vector.size(); ++i) {
-    //     if (m_thruster_vector[i] == 1) {
-    //         thruster_case_values.push_back(1);
-    //     } else if (m_thruster_vector[i] == 2) {
-    //         thruster_case_values.push_back(1);
-    //         thruster_case_values.push_back(1);
-    //     } else {
-    //         thruster_case_values.push_back(0);
-    //     }
-    // }
-
-    // m_adjusted_upper_limit.clear();
-    // m_adjusted_lower_limit.clear();
-
-    // // Populate adjusted upper and lower limit vectors
-    // for (size_t i = 0; i < m_thruster_vector.size(); ++i) {
-    //     if (m_thruster_vector[i] == 1 || m_thruster_vector[i] == 0) {
-    //         m_adjusted_upper_limit.push_back(m_upper_limit[i]);
-    //         m_adjusted_lower_limit.push_back(m_lower_limit[i]);
-    //     } else if (m_thruster_vector[i] == 2) {
-    //         m_adjusted_upper_limit.push_back(m_upper_limit[i]);
-    //         m_adjusted_upper_limit.push_back(m_upper_limit[i]);
-    //         m_adjusted_lower_limit.push_back(m_lower_limit[i]);
-    //         m_adjusted_lower_limit.push_back(m_lower_limit[i]);
-    //     }
-    // }
+    thruster_case_values.reserve(kNumConstraints);
 
     // Populate thruster case values vector and adjusted upper and lower limit vectors
     m_adjusted_upper_limit.clear();
@@ -287,9 +260,6 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
         }
     }
 
-    int kNumConstraints = 3 * pair_count + single_count;
-    int kNumVariables = m_control_allocation_matrix.cols();
-
     osqp::OsqpInstance qp_instance;
     qp_instance.objective_matrix = Q.sparseView();
     qp_instance.objective_vector = c;
@@ -297,12 +267,13 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
     qp_instance.upper_bounds.resize(kNumConstraints);
 
     Eigen::SparseMatrix<double> A_sparse(kNumConstraints, kNumVariables);
-    A_sparse.setZero();
+    A_sparse.setZero(); //all constraint matrix values set to 0
     std::vector<Eigen::Triplet<double>> A_triplets;
 
     const double omega_deltaT = omega * deltaT;
-    size_t j = 0;
-    for (size_t i = 0; i < m_thruster_vector.size(); ++i) {
+    size_t j = 0;  //row  counter
+
+    for (size_t i = 0; i < kNumConstraints; ++i) {
         int thruster_setting = static_cast<int>(m_thruster_vector[i]);
         double beta = m_current_angles[i];
         switch (thruster_setting) {
