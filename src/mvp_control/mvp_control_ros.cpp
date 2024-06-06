@@ -1205,9 +1205,6 @@ void MvpControlROS::f_control_loop() {
 
                             current_angle = angle;
 
-                            //Push this so mvp_control OSQP can use it:
-                            //m_mvp_control->set_current_angle(joint_name, current_angle);
-
                             m_mvp_control->set_current_angle(&index, current_angle);
 
                         } catch (tf2::TransformException &ex) {

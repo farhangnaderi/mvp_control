@@ -158,14 +158,7 @@ bool MvpControl::calculate_needed_forces(Eigen::VectorXd *f, double dt) {
         return false;
     }
 
-    // Convert Eigen::VectorXd to string using std::stringstream
-    // std::stringstream ss;
-    // ss << u.transpose();  // Use transpose to print the vector horizontally
-
-    // Log the content of 'u' using ROS_INFO
-    //ROS_INFO_STREAM("Current input values (u): " << ss.str());
-    // std::cout << "Current input values (u): \n"<<u<<std::endl;
-        /**
+    /**
      * Below code computes the forces that later will be requested from the
      * thrusters. Values in the force vector are not thruster set points yet.
      */
