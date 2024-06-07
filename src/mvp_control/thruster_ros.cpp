@@ -133,10 +133,6 @@ void ThrusterROS::setServoSpeeds(const std::vector<double>& speeds) {
 
 void ThrusterROS::initialize() {
 
-    if (!m_pnh.hasParam(CONF_THRUSTER_SERVO_SPEEDS)) {
-        throw control_ros_exception("servo_speeds empty");
-    }
-
     if(!m_thrust_command_topic_id.empty()) {
         m_thrust_publisher = m_nh.advertise<std_msgs::Float64>(
             m_thrust_command_topic_id, 100);
