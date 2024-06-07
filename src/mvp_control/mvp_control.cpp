@@ -18,7 +18,11 @@
     Email: emircem@uri.edu;emircem.gezer@gmail.com
     Year: 2022
 
-    Copyright (C) 2022 Smart Ocean Systems Laboratory
+    Author: Farhang Naderi
+    Email: farhang.naderi@uri.edu;farhang.nba@gmail.com
+    Year: 2024
+
+    Copyright (C) 2024 Smart Ocean Systems Laboratory
 */
 
 #include "mvp_control.h"

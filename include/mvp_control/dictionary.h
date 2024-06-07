@@ -18,7 +18,11 @@
     Email: emircem@uri.edu;emircem.gezer@gmail.com
     Year: 2022
 
-    Copyright (C) 2022 Smart Ocean Systems Laboratory
+    Author: Farhang Naderi
+    Email: farhang.naderi@uri.edu;farhang.nba@gmail.com
+    Year: 2024
+
+    Copyright (C) 2024 Smart Ocean Systems Laboratory
 */
 
 #pragma once
@@ -85,7 +89,6 @@ namespace ctrl {
     static constexpr const char * CONF_CONTROL_ALLOCATION_MATRIX = "control_allocation_matrix";
     static constexpr const char * CONF_CONTROL_TF = "control_tf";
     static constexpr const char * CONF_CONTROLLER_FREQUENCY = "controller_frequency";
-
 
     static constexpr const char * TOPIC_SAFETY = "safety";
     static constexpr const char * TOPIC_STATUS = "status";
