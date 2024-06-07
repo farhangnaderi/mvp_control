@@ -133,14 +133,6 @@ namespace ctrl {
          */
         bool f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u);
 
-        /** @brief Optimize thrust for given control input
-         *
-         * @param t Optimized forces for each thruster. This is the return value.
-         * @param u Control input
-         * @return
-         */
-        bool f_optimize_thrust_2(Eigen::VectorXd *t, Eigen::VectorXd u);
-
         /** @brief Error function for #MvpControl::m_pid object
          *
          * This method computes the error of each degree of freedom in their own domain.
@@ -314,7 +306,6 @@ namespace ctrl {
          */
         void
         update_desired_state(const decltype(m_desired_state) &desired_state);
-
 
         /** @brief Set the current angle.
          *

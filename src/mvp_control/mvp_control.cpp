@@ -129,16 +129,10 @@ void MvpControl::set_servo_speed(const decltype(m_servo_speed) &servo_speed) {
 }
 
 void MvpControl::set_current_angle(const int* m_thruster_index, double angle) {
-    // if (*m_thruster_index < 0 || *m_thruster_index >= m_current_angles.size()) {
-    //     throw std::out_of_range("Thruster index is out of range");
-    // }
     m_current_angles[*m_thruster_index] = angle;
 }
 
 double MvpControl::get_current_angle(const int* m_thruster_index) const {
-    // if (*m_thruster_index < 0 || *m_thruster_index >= m_current_angles.size()) {
-    //     throw std::out_of_range("Thruster index is out of range");
-    // }
     return m_current_angles[*m_thruster_index];
 }
 
@@ -419,12 +413,9 @@ void MvpControl::update_control_allocation_matrix(
     m_control_allocation_matrix = m;
 }
 
-
-
 void MvpControl::update_freedoms(std::vector<int> freedoms) {
     std::scoped_lock lock(m_controlled_freedoms_lock);
     m_controlled_freedoms = std::move(freedoms);
-
 }
 
 void MvpControl::update_desired_state(

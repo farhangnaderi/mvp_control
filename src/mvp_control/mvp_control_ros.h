@@ -114,8 +114,6 @@ namespace ctrl {
          */
         Eigen::MatrixXd m_control_allocation_matrix;
 
-        Eigen::MatrixXd m_control_allocation_matrix_previous;
-
         /**! @brief Thruster Articulation
          *  Thrusters articulation flag
          *  passed to this vector equal to the 
@@ -230,12 +228,6 @@ namespace ctrl {
          */
         void f_generate_control_allocation_from_tf();
 
-        /** @brief [WIP]Generates control allocation matrix from transform tree
-         *
-         *  This method is for test
-         */
-        void f_generate_control_allocation_from_tf_2();
-
         /** @brief Generates control allocation matrix from user input
          *
          *  This method is called if generator_type is 'user'
@@ -249,29 +241,11 @@ namespace ctrl {
          */
         void f_generate_control_allocation_matrix();
 
-        /**!
-         * @brief Generates control allocation matrix
-         * This sketch is none of anyone's business untill 
-         * I clean the mess.
-         */
-        void f_generate_control_allocation_matrix_2();
-
         /**
          * @brief
          * @return
          */
         bool f_update_control_allocation_matrix();
-
-        /** @brief Extract servo limits from URDF
-         * 
-         * This method extracts the upper and lower limits of the servo joints from the 
-         * URDF model and updates the provided limit vectors.
-         * 
-         * @param model The URDF model to extract limits from.
-         * @param upper_limit Vector to store the upper limits.
-         * @param lower_limit Vector to store the lower limits.
-         */
-        void f_extractServoLimits(const urdf::Model& model, Eigen::VectorXd& upper_limit, Eigen::VectorXd& lower_limit);
 
         /** @brief Generate thrusters
          *
@@ -445,17 +419,6 @@ namespace ctrl {
 
         //! @brief Generic typedef for shared pointer
         typedef std::shared_ptr<MvpControlROS> Ptr;
-
-        void f_log_latest_joint_state();
-
-        /**
-         * @brief Publishes joint states dynamically.
-         * @param joint_names Names of the joints.
-         * @param positions Positions for each joint.
-         * @param velocities (Optional) Velocities for each joint.
-         * @param efforts (Optional) Efforts for each joint.
-         */
-        void f_publish_joint_states(const std::vector<std::string>& joint_names, const std::vector<double>& positions, const std::vector<double>& velocities = {}, const std::vector<double>& efforts = {});
 
     };
 
