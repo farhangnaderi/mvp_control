@@ -99,6 +99,8 @@ namespace ctrl {
             UNKNOWN
         };
 
+        urdf::Model m_model; 
+        
         //! @brief Public node handler
         ros::NodeHandle m_nh;
 
@@ -271,6 +273,20 @@ namespace ctrl {
          *
          */
         void f_control_loop();
+
+        /**
+         * @brief Retrieves the joint limits for a specified joint.
+         *
+         * This function looks up the joint limits (lower and upper bounds) for a given joint in the URDF model.
+         * It is typically used to obtain the joint angle limits from the robot's URDF description.
+         *
+         * @param model The URDF model containing the joint.
+         * @param joint_name The name of the joint for which the limits are requested.
+         * @param lower The lower limit of the joint (output parameter).
+         * @param upper The upper limit of the joint (output parameter).
+         * @return True if the joint limits were successfully retrieved, false otherwise.
+         */
+        bool f_getJointLimits(const urdf::Model &model, const std::string &joint_name, double &lower, double &upper);
 
         /** @brief Retrieves the current position of a specified joint.
          *
