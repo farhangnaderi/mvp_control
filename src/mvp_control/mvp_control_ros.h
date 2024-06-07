@@ -17,8 +17,12 @@
     Author: Emir Cem Gezer
     Email: emircem@uri.edu;emircem.gezer@gmail.com
     Year: 2022
+    
+    Author: Farhang Naderi
+    Email: farhang.naderi@uri.edu;farhang.nba@gmail.com
+    Year: 2024
 
-    Copyright (C) 2022 Smart Ocean Systems Laboratory
+    Copyright (C) 2024 Smart Ocean Systems Laboratory
 */
 
 #pragma once
@@ -37,6 +41,9 @@
 #include "tf2/LinearMath/Matrix3x3.h"
 #include "tf2_eigen/tf2_eigen.h"
 #include "tf2_ros/transform_listener.h"
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+
+#include <urdf/model.h>
 
 #include "std_msgs/Float32.h"
 #include "std_srvs/Empty.h"
@@ -101,12 +108,22 @@ namespace ctrl {
         //! @brief Thruster list
         std::vector<ThrusterROS::Ptr> m_thrusters;
 
+        //! @brief Servos list
+        std::vector<ThrusterROS::Ptr> m_servos;
+
         /**! @brief Control Allocation Matrix
          *
          *  Control allocation matrix is generated from individual
          *  configurations of the thrusters.
          */
         Eigen::MatrixXd m_control_allocation_matrix;
+
+        /**! @brief Thruster Articulation
+         *  Thrusters articulation flag
+         *  passed to this vector equal to the 
+         *  size of atriculation matrix columns
+         */
+        Eigen::VectorXd m_thruster_vector;
 
         //! @brief Control allocation matrix generator type
         GeneratorType m_generator_type;
@@ -116,6 +133,9 @@ namespace ctrl {
 
         //! @brief World link id
         std::string m_world_link_id;
+
+        //! @brief Controller Frequency Param
+        double m_controller_frequency;
 
         //! @brief Transform buffer for TF2
         tf2_ros::Buffer m_transform_buffer;
@@ -134,9 +154,6 @@ namespace ctrl {
 
         //! @brief Set point
         Eigen::VectorXd m_set_point;
-
-        //! @brief Controller frequency
-        double m_controller_frequency;
 
         //! @brief Get control modes ros service server
         ros::ServiceServer m_get_control_modes_server;
@@ -164,6 +181,16 @@ namespace ctrl {
 
         //! @brief Set point subscriber
         ros::Subscriber m_set_point_subscriber;
+
+        //! @brief Joint State subscriber
+        ros::Subscriber m_joint_state_subscriber;
+
+        sensor_msgs::JointState m_latest_joint_state;
+
+        std::recursive_mutex m_joint_state_lock;
+
+        //! @brief Joint state publisher
+        ros::Publisher m_joint_state_publisher;
 
         //! @brief Publishes process error publisher
         ros::Publisher m_process_error_publisher;
@@ -244,6 +271,18 @@ namespace ctrl {
          *
          */
         void f_control_loop();
+
+        /** @brief Retrieves the current position of a specified joint.
+         *
+         * This method looks up the current position (angle in radians) of a joint given its name. 
+         * It is typically used to obtain real-time joint angles from the robot's state, which may 
+         * be stored internally or received from a ROS topic. This functionality is crucial for 
+         * control tasks that require knowledge of the robot's current configuration.
+         *
+         * @param joint_name The name of the joint for which the current position is requested.
+         * @return The current position of the joint in radians. Throws an exception if the joint name is not found.
+         */
+        double f_get_current_joint_position(const std::string& joint_name);
 
         /** @brief Convert prq to world_frame angular rate:
          *  Eq.(2.12), Eq.(2.14) from Thor I. Fossen, Guidance and Control of Ocean Vehicles, Page 10
@@ -380,9 +419,10 @@ namespace ctrl {
          */
         void initialize();
 
+        void f_cb_msg_joint_state(const sensor_msgs::JointState::ConstPtr &msg);
+
         //! @brief Generic typedef for shared pointer
         typedef std::shared_ptr<MvpControlROS> Ptr;
-
 
     };
 

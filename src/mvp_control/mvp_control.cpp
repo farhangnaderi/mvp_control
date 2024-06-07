@@ -18,7 +18,11 @@
     Email: emircem@uri.edu;emircem.gezer@gmail.com
     Year: 2022
 
-    Copyright (C) 2022 Smart Ocean Systems Laboratory
+    Author: Farhang Naderi
+    Email: farhang.naderi@uri.edu;farhang.nba@gmail.com
+    Year: 2024
+
+    Copyright (C) 2024 Smart Ocean Systems Laboratory
 */
 
 #include "mvp_control.h"
@@ -67,6 +71,21 @@ auto MvpControl::get_control_allocation_matrix() ->
     return m_control_allocation_matrix;
 }
 
+void MvpControl::set_thruster_articulation_vector(
+        const decltype(m_thruster_vector)& vector) {
+    m_thruster_vector = vector;
+}
+
+auto MvpControl::get_thruster_articulation_vector() ->
+        decltype(m_thruster_vector){
+    return m_thruster_vector;
+}
+
+void MvpControl::set_controller_frequency(
+        const decltype(m_controller_frequency)& frequency) {
+    m_controller_frequency = frequency;
+}
+
 auto MvpControl::get_pid() -> decltype(m_pid) {
     return m_pid;
 }
@@ -101,6 +120,26 @@ void MvpControl::set_upper_limit(const decltype(m_upper_limit) &upper_limit) {
     m_upper_limit = upper_limit;
 }
 
+void MvpControl::set_lower_angle(const decltype(m_lower_angle) &lower_angle) {
+    m_lower_angle = lower_angle;
+}
+
+void MvpControl::set_upper_angle(const decltype(m_upper_angle) &upper_angle) {
+    m_upper_angle = upper_angle;
+}
+
+void MvpControl::set_servo_speed(const decltype(m_servo_speed) &servo_speed) {
+    m_servo_speed = servo_speed;
+}
+
+void MvpControl::set_current_angle(const int* m_thruster_index, double angle) {
+    m_current_angles[*m_thruster_index] = angle;
+}
+
+double MvpControl::get_current_angle(const int* m_thruster_index) const {
+    return m_current_angles[*m_thruster_index];
+}
+
 bool MvpControl::calculate_needed_forces(Eigen::VectorXd *f, double dt) {
 
     /**
@@ -121,134 +160,201 @@ bool MvpControl::calculate_needed_forces(Eigen::VectorXd *f, double dt) {
      * Below code computes the forces that later will be requested from the
      * thrusters. Values in the force vector are not thruster set points yet.
      */
-    if(f_optimize_thrust(f, u)) {
+    if (f_optimize_thrust(f, u))
+    {
         return true;
-    } else {
-        // todo: create a warning
     }
-
+    else
+    {
+        ROS_WARN("Optimization of thrust failed!");
+    }
     return false;
 }
 
-bool MvpControl::f_calculate_pid(Eigen::VectorXd *u, double dt) {
+bool MvpControl::f_calculate_pid(Eigen::VectorXd *u, double dt)
+{
     return m_pid->calculate(u, m_desired_state, m_system_state, dt);
 }
 
 bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
+    static bool is_initialized = false;
+    if (!is_initialized) {
+        m_current_angles.resize(m_thruster_vector.size(), 0.0);
+        is_initialized = true;
+    }
 
-    // Control allocation matrix
-    Eigen::MatrixXd T(
-        m_controlled_freedoms.size(),
-        m_control_allocation_matrix.cols()
-    );
-
-    // Control matrix
+    // Allocate and initialize control matrices and vectors
+    Eigen::MatrixXd T(m_controlled_freedoms.size(), m_control_allocation_matrix.cols());
     Eigen::VectorXd U(m_controlled_freedoms.size());
 
+    // Scoped lock for thread safety when accessing shared resources
     {
-        /**
-         * Quadatic equation solving is probably the most time consuming part
-         * of the program. During that time changes may happen. Most likely
-         * change would happen on the 'm_controlled_freedoms' vector. This
-         * vector updates when controllers mode change. Scoped lock is making
-         * sure that those variables will not change while execution is inside
-         * in this scope.
-         */
-        std::scoped_lock lock(m_allocation_matrix_lock,
-                              m_controlled_freedoms_lock);
-        /**
-         * We are using a portion of the control allication matrix and the
-         * control input. This is important for online mode updates.
-         *
-         */
-        for (int i = 0; i < m_controlled_freedoms.size(); i++) {
-            T.row(i) = m_control_allocation_matrix.row(
-                m_controlled_freedoms.at(i));
-            U(i) = u(m_controlled_freedoms.at(i));
+        std::scoped_lock lock(m_allocation_matrix_lock, m_controlled_freedoms_lock);
+        for (int i = 0; i < m_controlled_freedoms.size(); ++i) {
+            int idx = m_controlled_freedoms.at(i);
+            if (idx < 0 || idx >= m_control_allocation_matrix.rows() || idx >= u.size()) {
+                ROS_ERROR_STREAM("Index out of bounds when accessing controlled freedoms: " << idx);
+                return false;
+            }
+            T.row(i) = m_control_allocation_matrix.row(idx);
+            U(i) = u(idx);
         }
     }
 
-    /**
-     * Now we are preparing data for quadratic solver to consume.
-     */
-
-    // Q -> objective matrix
+    // Prepare data for the quadratic solver
     Eigen::MatrixXd Q = 2 * T.transpose() * T;
-    // c -> objective vector
-    Eigen::VectorXd c = (-2 * (U.transpose() * T)).transpose();
+    Eigen::VectorXd c = -2 * T.transpose() * U;
 
-    std::vector<Eigen::Triplet<double>> Q_triplets;
-    for(int i = 0 ; i < Q.rows() ; i++) {
-        for(int j = 0 ; j < Q.cols() ; j++) {
-            Q_triplets.emplace_back(Eigen::Triplet<double>{i, j, Q(i,j)});
+    const double deltaT = 1.0 / m_controller_frequency;
+
+    // Calculate the number of pairs and singles in the thruster vector
+    auto [pair_count, single_count] = [this] {
+        int pairs = 0;
+        int singles = 0;
+        for (int i = 0; i + 1 < m_thruster_vector.size(); ++i) {
+            if (m_thruster_vector(i) == 1 && m_thruster_vector(i + 1) == 2) {
+                pairs++;
+                i++; // Skip the next element since it forms a pair with the current element
+            } else {
+                singles++;
+            }
+        }
+        return std::make_pair(pairs, singles);
+    }();
+
+    // Check the last element if it's not part of the last checked pair
+    if (m_thruster_vector.size() > 0 && 
+        (m_thruster_vector(m_thruster_vector.size() - 1) != 2 || 
+         (m_thruster_vector.size() > 1 && m_thruster_vector(m_thruster_vector.size() - 2) != 1))) {
+        single_count++;
+    }
+
+    int kNumConstraints = 3 * pair_count + single_count;
+    int kNumVariables = m_control_allocation_matrix.cols();
+
+    // Helper for adjusted dimension boundaries vector
+    std::vector<int> thruster_case_values;
+    thruster_case_values.reserve(kNumConstraints);
+
+    // Populate thruster case values vector and adjusted upper and lower limit vectors
+    m_adjusted_upper_limit.clear();
+    m_adjusted_lower_limit.clear();
+    thruster_case_values.clear();
+
+    for (size_t i = 0; i < m_thruster_vector.size(); ++i) {
+        int thruster_value = m_thruster_vector[i];
+        thruster_case_values.push_back(thruster_value == 2 ? 1 : thruster_value);
+
+        m_adjusted_upper_limit.push_back(m_upper_limit[i]);
+        m_adjusted_lower_limit.push_back(m_lower_limit[i]);
+
+        if (thruster_value == 2) {
+            m_adjusted_upper_limit.push_back(m_upper_limit[i]);
+            m_adjusted_lower_limit.push_back(m_lower_limit[i]);
         }
     }
 
-
-    // Creating a quadratic solver instance.
+    // Setup OSQP solver instance
     osqp::OsqpInstance qp_instance;
-
-    /**
-     * Translating the objective matrix into sparse matrix. Eigen::SparseMatrix
-     * is the data type that is consumed by quadratic solver.
-     */
-    Eigen::SparseMatrix<double> Q_sparse(Q.rows(), Q.cols());
-    Q_sparse.setFromTriplets(Q_triplets.begin(), Q_triplets.end());
-    qp_instance.objective_matrix = Q_sparse;
-
+    qp_instance.objective_matrix = Q.sparseView();
     qp_instance.objective_vector = c;
+    qp_instance.lower_bounds.resize(kNumConstraints);
+    qp_instance.upper_bounds.resize(kNumConstraints);
 
-    qp_instance.lower_bounds.resize(m_lower_limit.size());
-    qp_instance.lower_bounds << m_lower_limit;
+    Eigen::SparseMatrix<double> A_sparse(kNumConstraints, kNumVariables);
+    A_sparse.setZero(); // Set all constraint matrix values to 0
+    std::vector<Eigen::Triplet<double>> A_triplets;
 
-    qp_instance.upper_bounds.resize(m_upper_limit.size());
-    qp_instance.upper_bounds << m_upper_limit;
+    size_t j = 0;  // Row counter
 
-    qp_instance.constraint_matrix =
-        Eigen::SparseMatrix<double>(Q.cols(),Q.cols());
+    // Construct constraint matrix and bounds
+    for (size_t i = 0; i < m_thruster_vector.size(); ++i) {
+        int thruster_setting = static_cast<int>(m_thruster_vector[i]);
+        double beta = m_current_angles[i];
+        switch (thruster_setting) {
+            case 0:
+                A_triplets.emplace_back(j, i, 1.0);
+                qp_instance.lower_bounds[j] = m_adjusted_lower_limit[j];
+                qp_instance.upper_bounds[j] = m_adjusted_upper_limit[j];
+                j++;
+                break;
+            case 1:
+                A_triplets.emplace_back(j, i, 1.0);
+                A_triplets.emplace_back(j + 1, i, tan(-std::min(m_servo_speed[i] * deltaT , m_upper_angle[i] - beta)));
+                A_triplets.emplace_back(j + 2, i, tan(std::max(-m_servo_speed[i] * deltaT , m_lower_angle[i] - beta)));
+                A_triplets.emplace_back(j + 1, i + 1, 1.0);
+                A_triplets.emplace_back(j + 2, i + 1, -1.0);
 
-    qp_instance.constraint_matrix.setIdentity();
+                qp_instance.lower_bounds[j] = 0;
+                qp_instance.upper_bounds[j] = m_adjusted_upper_limit[j] * std::cos(m_servo_speed[i] * deltaT);
+                qp_instance.lower_bounds[j + 1] = -kInfinity;
+                qp_instance.upper_bounds[j + 1] = 0;
+                qp_instance.lower_bounds[j + 2] = -kInfinity;
+                qp_instance.upper_bounds[j + 2] = 0;
+                j += 3; //jumping the constraint rows
+                break;
+            case 2:
+                // Add any specific handling for thruster setting 2 if necessary
+                break;
+            default:
+                ROS_ERROR_STREAM("Unexpected thruster setting: " << thruster_setting);
+                return false;
+        }
+    }
 
+    // Populate constraint matrix
+    A_sparse.setFromTriplets(A_triplets.begin(), A_triplets.end());
+    qp_instance.constraint_matrix = A_sparse;
+
+    // Initialize OSQP solver
     osqp::OsqpSolver solver;
     osqp::OsqpSettings settings;
-
     settings.verbose = false;
-
     auto status = solver.Init(qp_instance, settings);
 
-    if(not status.ok()) {
+    if (!status.ok()) {
+        ROS_ERROR("OSQP solver initialization failed.");
         return false;
     }
 
+    // Solve the quadratic programming problem
     osqp::OsqpExitCode exitCode = solver.Solve();
 
+    // Handle solver exit codes
     switch (exitCode) {
-        case osqp::OsqpExitCode::kOptimal: {
+        case osqp::OsqpExitCode::kOptimal:
             *t = solver.primal_solution();
             return true;
-            break;
-        }
         case osqp::OsqpExitCode::kPrimalInfeasible:
+            ROS_ERROR("The problem is primal infeasible.");
             break;
         case osqp::OsqpExitCode::kDualInfeasible:
+            ROS_ERROR("The problem is dual infeasible.");
             break;
         case osqp::OsqpExitCode::kOptimalInaccurate:
+            ROS_ERROR("The optimal solution is inaccurate.");
             break;
         case osqp::OsqpExitCode::kPrimalInfeasibleInaccurate:
+            ROS_ERROR("The problem is primal infeasible and the solution is inaccurate.");
             break;
         case osqp::OsqpExitCode::kDualInfeasibleInaccurate:
+            ROS_ERROR("The problem is dual infeasible and the solution is inaccurate.");
             break;
         case osqp::OsqpExitCode::kMaxIterations:
+            ROS_ERROR("The maximum number of iterations has been reached.");
             break;
         case osqp::OsqpExitCode::kInterrupted:
+            ROS_ERROR("The optimization was interrupted.");
             break;
         case osqp::OsqpExitCode::kTimeLimitReached:
+            ROS_ERROR("The time limit was reached before a solution was found.");
             break;
         case osqp::OsqpExitCode::kNonConvex:
+            ROS_ERROR("The problem is non-convex.");
             break;
         case osqp::OsqpExitCode::kUnknown:
-            break;
         default:
+            ROS_ERROR("An unknown error occurred.");
             break;
     }
 
@@ -290,12 +396,12 @@ Eigen::ArrayXd MvpControl::f_error_function(Eigen::ArrayXd desired,
         // error(i) = diff < -M_PI ? diff + 2*M_PI : diff;
 
         //wrap desired and current in to -pi to pi
-        auto d = (fmod(desired(i) + std::copysign(M_PI, desired(i)), 2*M_PI) 
+        auto d = (fmod(desired(i) + std::copysign(M_PI, desired(i)), 2*M_PI)
                 - std::copysign(M_PI, desired(i)));
-        auto c = (fmod(current(i) + std::copysign(M_PI,current(i)), 2*M_PI) 
+        auto c = (fmod(current(i) + std::copysign(M_PI,current(i)), 2*M_PI)
                 - std::copysign(M_PI,current(i)));
         auto t = d - c;
-        double diff = (fmod(t + std::copysign(M_PI,t), 2*M_PI) 
+        double diff = (fmod(t + std::copysign(M_PI,t), 2*M_PI)
                 - std::copysign(M_PI,t));
         error(i) = diff;
     }
@@ -314,7 +420,6 @@ void MvpControl::update_control_allocation_matrix(
 void MvpControl::update_freedoms(std::vector<int> freedoms) {
     std::scoped_lock lock(m_controlled_freedoms_lock);
     m_controlled_freedoms = std::move(freedoms);
-
 }
 
 void MvpControl::update_desired_state(

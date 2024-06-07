@@ -18,7 +18,11 @@
     Email: emircem@uri.edu;emircem.gezer@gmail.com
     Year: 2022
 
-    Copyright (C) 2022 Smart Ocean Systems Laboratory
+    Author: Farhang Naderi
+    Email: farhang.naderi@uri.edu;farhang.nba@gmail.com
+    Year: 2024
+
+    Copyright (C) 2024 Smart Ocean Systems Laboratory
 */
 
 #pragma once
@@ -45,13 +49,24 @@ namespace ctrl {
     static constexpr const char * CONF_DOF_YAW_RATE = "yaw_rate";
 
     static constexpr const char * CONF_THRUSTER_POLY = "thruster_polynomials";
+    static constexpr const char* CONF_SERVO_POLY = "servo_coefficients";
     static constexpr const char * CONF_THRUST_COMMAND_TOPICS = "thruster_command_topics";
+    static constexpr const char * CONF_SERVO_COMMAND_TOPICS = "servo_command_topics";
+    static constexpr const char * CONF_SERVO_JOINT_TOPIC = "servo_joint_topic";
+    static constexpr const char * CONF_SERVO_JOINT_TOPIC_DEFAULT = "/control/servos/joint_states";
+    static constexpr const char * CONF_SERVO_JOINT_SETPOINT_TOPIC = "servo_joint_setpoint_topic";
     static constexpr const char * CONF_THRUSTER_FORCE_TOPICS = "thruster_force_topics";
     static constexpr const char * CONF_THRUSTER_IDS = "thruster_ids";
+    static constexpr const char * CONF_SERVO_IDS = "servo_ids";
+    static constexpr const char * CONF_THRUSTER_SERVO_JOINTS = "thruster_servo_joints";
+    static constexpr const char * CONF_THRUSTER_SERVO_SPEEDS = "thruster_servo_speeds";
 
     static constexpr const char * CONF_THRUSTER_LIMITS = "thruster_limits";
     static constexpr const char * CONF_THRUSTER_MAX = "max";
     static constexpr const char * CONF_THRUSTER_MIN = "min";
+    static constexpr const char * CONF_SERVO_LIMITS = "servo_limits";
+    static constexpr const char * CONF_SERVO_MAX = "max_angle";
+    static constexpr const char * CONF_SERVO_MIN = "min_angle";
 
     static constexpr const char * CONF_GENERATOR_TYPE = "generator_type";
     static constexpr const char * CONF_GENERATOR_TYPE_OPT_TF = "tf";
@@ -75,7 +90,6 @@ namespace ctrl {
     static constexpr const char * CONF_CONTROL_ALLOCATION_MATRIX = "control_allocation_matrix";
     static constexpr const char * CONF_CONTROL_TF = "control_tf";
     static constexpr const char * CONF_CONTROLLER_FREQUENCY = "controller_frequency";
-
 
     static constexpr const char * TOPIC_SAFETY = "safety";
     static constexpr const char * TOPIC_STATUS = "status";
