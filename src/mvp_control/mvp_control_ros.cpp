@@ -1092,8 +1092,9 @@ void MvpControlROS::f_control_loop() {
                         double x = needed_forces(i);
                         double y = needed_forces(i + 1);
                         double calculated_angle = atan2(y, x); 
-                        // Calculate the new angle since it is needed in body frame
-                        double new_angle = current_angle + calculated_angle;
+
+                        // Calculate the new angle since it is needed in body frame within -pi to pi
+                        double new_angle = fmod(current_angle + calculated_angle + M_PI, 2 * M_PI) - M_PI;
 
                         m_thrusters.at(i)->request_joint_angles(joint_name, new_angle);
 
