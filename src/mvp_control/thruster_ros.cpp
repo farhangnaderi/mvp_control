@@ -267,8 +267,18 @@ double ThrusterROS::normalize_angle(double angle) const {
         throw std::runtime_error("Servo polynomial must have exactly 2 coefficients.");
     }
 
-    // Apply the linear calibration equation
-    double pwm = servo_coeff_[0] * angle + servo_coeff_[1];
+    double slope = servo_coeff_[0];
+    double x_min = servo_coeff_[1];
+
+    // Calculate the period based on the slope
+    double period = 2.0 / slope;
+
+    // Calculate the phase shift
+    double phase_shift = x_min;  // x_min is already in radians
+
+    // Calculate the sawtooth wave value with phase shift
+    double normalized_angle = 2 * ((angle - phase_shift) / period - std::floor(0.5 + (angle - phase_shift) / period));
+    double pwm = slope * normalized_angle;
 
     // Clamp the pwm to the range -1 to 1
     return std::max(std::min(pwm, 1.0), -1.0);
