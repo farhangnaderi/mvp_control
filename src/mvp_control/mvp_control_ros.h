@@ -205,6 +205,9 @@ namespace ctrl {
          */
         void f_generate_control_allocation_from_tf();
 
+         //!  @brief initial tf checking 
+        bool f_initial_tf_check();
+
         /** @brief Generates control allocation matrix from user input
          *
          *  This method is called if generator_type is 'user'

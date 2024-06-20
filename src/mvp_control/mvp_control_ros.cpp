@@ -304,6 +304,16 @@ void MvpControlROS::f_generate_thrusters() {
         m_thrusters.emplace_back(t);
     }
 
+    for(const auto& t : m_thrusters) {
+        std::string link_id;
+        m_pnh.param<std::string>(
+            std::string() + CONF_CONTROL_TF + "/" + t->get_id(),
+            link_id,
+            t->get_id() + "_thruster_link"
+        );
+
+        t->set_link_id(m_tf_prefix + link_id);
+    }
     // initialize thrust command publishers
     for(const auto& t : m_thrusters) {
 
@@ -354,15 +364,28 @@ void MvpControlROS::initialize() {
     // Generate thrusters with the given configuration
     f_generate_thrusters();
 
-    // Generate control allocation matrix with defined method
-    f_generate_control_allocation_matrix();
-
     // Initialize thruster objects.
     std::for_each(m_thrusters.begin(),m_thrusters.end(),
         [](const ThrusterROS::Ptr& t){
             t->initialize();
         }
     );
+    
+    ROS_INFO("#### Thruster object created ####");
+
+    // Generate thrusters with the given configuration
+    while(!f_initial_tf_check())
+    {
+        sleep(1);
+    };
+
+    ROS_INFO("#### TF for thruster checking done ####");
+
+
+    // Generate control allocation matrix with defined method
+    f_generate_control_allocation_matrix();
+
+    ROS_INFO("#### Allocation matrix generated ####");
 
     m_mvp_control->set_desired_state(m_set_point);
 
@@ -403,18 +426,49 @@ void MvpControlROS::f_generate_control_allocation_from_user() {
     }
 }
 
-void MvpControlROS::f_generate_control_allocation_from_tf() {
 
+bool MvpControlROS::f_initial_tf_check(){
+    
+    ROS_INFO("   MVP_control TF checking started");
+
+    //check world link to cg link is up
+    try {
+            // Transform center of gravity to world
+        auto cg_world = m_transform_buffer.lookupTransform(
+            m_world_link_id,
+            m_cg_link_id,
+            ros::Time(0)
+            );
+    }catch(tf2::TransformException& e) {
+        ROS_WARN_STREAM_THROTTLE(10, std::string("Can't find TF between world and cg: ") + e.what());
+        return false;
+        }
+    ROS_INFO("   world_link to cg_link found");
+
+    //check thruster to cg_link is up.
+    // For each thruster look up transformation
     for(const auto& t : m_thrusters) {
-        std::string link_id;
-        m_pnh.param<std::string>(
-            std::string() + CONF_CONTROL_TF + "/" + t->get_id(),
-            link_id,
-            t->get_id() + "_thruster_link"
-        );
+        try {
+            auto tf_cg_thruster = m_transform_buffer.lookupTransform(
+                m_cg_link_id,
+                t->get_link_id(),
+                ros::Time(0)
+                );
 
-        t->set_link_id(m_tf_prefix + link_id);
+        } catch (const tf2::TransformException & e) {
+            ROS_WARN_STREAM_THROTTLE(10, std::string("Can't find TF for thrusters: ") + e.what());
+            ROS_INFO("Could not transform %s to %s: %s",
+                         t->get_link_id().c_str(), m_cg_link_id.c_str(), e.what() ); 
+          return false;
+        }
     }
+
+    ROS_INFO("   thrust to cg_link found");
+    return true;
+}
+
+
+void MvpControlROS::f_generate_control_allocation_from_tf() {
 
     // For each thruster look up transformation
     for(const auto& t : m_thrusters) {
@@ -1365,7 +1419,7 @@ bool MvpControlROS::f_amend_control_mode(std::string mode) {
 
         m_mvp_control->update_freedoms(found->dofs);
 
-        ROS_INFO_STREAM("Controller mode changed to " << mode);
+        // ROS_INFO_STREAM("Controller mode changed to " << mode);
 
         // mode is not empty. mode is in the modes list. operation is valid.
         return true;
