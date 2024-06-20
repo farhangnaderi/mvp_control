@@ -984,97 +984,297 @@ bool MvpControlROS::f_compute_process_values() {
     return true;
 }
 
+void apply_action(Action action, double& Kp_surge, double& Ki_surge, double& Kd_surge, 
+                  double& Kp_z, double& Ki_z, double& Kd_z, 
+                  double& Kp_roll, double& Ki_roll, double& Kd_roll, 
+                  double& Kp_sway, double& Ki_sway, double& Kd_sway, 
+                  double& Kp_pitch, double& Ki_pitch, double& Kd_pitch, 
+                  double& Kp_yaw, double& Ki_yaw, double& Kd_yaw) {
+    double delta_p = 0.1, delta_i = 0.01, delta_d = 0.01;
+
+    switch (action) {
+        case INCREASE_KP_SURGE: Kp_surge += delta_p; break;
+        case DECREASE_KP_SURGE: Kp_surge -= delta_p; break;
+        case INCREASE_KI_SURGE: Ki_surge += delta_i; break;
+        case DECREASE_KI_SURGE: Ki_surge -= delta_i; break;
+        case INCREASE_KD_SURGE: Kd_surge += delta_d; break;
+        case DECREASE_KD_SURGE: Kd_surge -= delta_d; break;
+
+        case INCREASE_KP_Z: Kp_z += delta_p; break;
+        case DECREASE_KP_Z: Kp_z -= delta_p; break;
+        case INCREASE_KI_Z: Ki_z += delta_i; break;
+        case DECREASE_KI_Z: Ki_z -= delta_i; break;
+        case INCREASE_KD_Z: Kd_z += delta_d; break;
+        case DECREASE_KD_Z: Kd_z -= delta_d; break;
+
+        case INCREASE_KP_ROLL: Kp_roll += delta_p; break;
+        case DECREASE_KP_ROLL: Kp_roll -= delta_p; break;
+        case INCREASE_KI_ROLL: Ki_roll += delta_i; break;
+        case DECREASE_KI_ROLL: Ki_roll -= delta_i; break;
+        case INCREASE_KD_ROLL: Kd_roll += delta_d; break;
+        case DECREASE_KD_ROLL: Kd_roll -= delta_d; break;
+
+        case INCREASE_KP_SWAY: Kp_sway += delta_p; break;
+        case DECREASE_KP_SWAY: Kp_sway -= delta_p; break;
+        case INCREASE_KI_SWAY: Ki_sway += delta_i; break;
+        case DECREASE_KI_SWAY: Ki_sway -= delta_i; break;
+        case INCREASE_KD_SWAY: Kd_sway += delta_d; break;
+        case DECREASE_KD_SWAY: Kd_sway -= delta_d; break;
+
+        case INCREASE_KP_PITCH: Kp_pitch += delta_p; break;
+        case DECREASE_KP_PITCH: Kp_pitch -= delta_p; break;
+        case INCREASE_KI_PITCH: Ki_pitch += delta_i; break;
+        case DECREASE_KI_PITCH: Ki_pitch -= delta_i; break;
+        case INCREASE_KD_PITCH: Kd_pitch += delta_d; break;
+        case DECREASE_KD_PITCH: Kd_pitch -= delta_d; break;
+
+        case INCREASE_KP_YAW: Kp_yaw += delta_p; break;
+        case DECREASE_KP_YAW: Kp_yaw -= delta_p; break;
+        case INCREASE_KI_YAW: Ki_yaw += delta_i; break;
+        case DECREASE_KI_YAW: Ki_yaw -= delta_i; break;
+        case INCREASE_KD_YAW: Kd_yaw += delta_d; break;
+        case DECREASE_KD_YAW: Kd_yaw -= delta_d; break;
+    }
+
+    // Cap the PID gains to prevent them from going out of control
+    double max_p = 50.0, max_i = 20.0, max_d = 20.0;
+    double min_p = 2.0, min_i = 0.0, min_d = 0.0;
+
+    Kp_surge = std::clamp(Kp_surge, min_p, max_p);
+    Ki_surge = std::clamp(Ki_surge, min_i, max_i);
+    Kd_surge = std::clamp(Kd_surge, min_d, max_d);
+
+    Kp_z = std::clamp(Kp_z, min_p, max_p);
+    Ki_z = std::clamp(Ki_z, min_i, max_i);
+    Kd_z = std::clamp(Kd_z, min_d, max_d);
+
+    Kp_roll = std::clamp(Kp_roll, min_p, max_p);
+    Ki_roll = std::clamp(Ki_roll, min_i, max_i);
+    Kd_roll = std::clamp(Kd_roll, min_d, max_d);
+
+    Kp_sway = std::clamp(Kp_sway, min_p, max_p);
+    Ki_sway = std::clamp(Ki_sway, min_i, max_i);
+    Kd_sway = std::clamp(Kd_sway, min_d, max_d);
+
+    Kp_pitch = std::clamp(Kp_pitch, min_p, max_p);
+    Ki_pitch = std::clamp(Ki_pitch, min_i, max_i);
+    Kd_pitch = std::clamp(Kd_pitch, min_d, max_d);
+
+    Kp_yaw = std::clamp(Kp_yaw, min_p, max_p);
+    Ki_yaw = std::clamp(Ki_yaw, min_i, max_i);
+    Kd_yaw = std::clamp(Kd_yaw, min_d, max_d);
+}
+
+// void MvpControlROS::f_control_loop() {
+
+//     double pt = ros::Time::now().toSec();
+
+//     auto r = ros::Rate(m_controller_frequency);
+
+//     while(ros::ok()) {
+
+//         /**
+//          * Thread may not be able to sleep properly. This may happen using
+//          * simulated time.
+//          */
+//         if(!r.sleep()) {
+//             continue;
+//         }
+
+//         /**
+//          * Check if controller is enabled or not.
+//          */
+//         if(!m_enabled) {
+//              for(int i = 0 ; i < m_thrusters.size() ; i++) {
+//                 m_thrusters.at(i)->command(0);
+//             }
+//             continue;
+//         }
+
+//         /**
+//          * Compute the state of the system. Continue on failure. This may
+//          * happen when transform tree is not ready.
+//          */
+//         if(not f_compute_process_values()) {
+//             continue;
+//         }
+
+//         Eigen::VectorXd needed_forces;
+
+//         /**
+//          * Get time difference to feed PID controller
+//          */
+//         double dt = ros::Time::now().toSec() - pt;
+
+//         /**
+//          * Calculate forces to be requested from thrusters. If operation fails,
+//          * do not send commands to thrusters.
+//          */
+
+//         if(m_mvp_control->calculate_needed_forces(&needed_forces, dt)) {
+//             for(int i = 0; i < m_thrusters.size(); ) {
+//                 auto is_articulated = m_thrusters.at(i)->get_is_articulated();
+
+//                 int index = i;
+
+//                 if(is_articulated == 1) {
+//                     if(i + 1 < m_thrusters.size()) {
+//                         auto combined_force = sqrt(pow(needed_forces(i), 2) + pow(needed_forces(i + 1), 2));
+//                         m_thrusters.at(i)->request_force(combined_force);
+
+//                         std::string thruster_link_id = m_thrusters.at(i)->get_link_id();
+//                         double current_angle = 0.0;  // This will hold the computed angle in the x-z plane
+//                         std::string joint_name = m_tf_prefix + m_thrusters.at(i)->get_servo_joints().at(0);
+
+//                         try {
+//                             auto tf_cg_thruster = m_transform_buffer.lookupTransform(
+//                                 m_cg_link_id, 
+//                                 thruster_link_id,  
+//                                 ros::Time(0),
+//                                 ros::Duration(3.0)
+//                             );
+
+//                             // Extract the rotation part as a quaternion
+//                             tf2::Quaternion quaternion;
+//                             tf2::fromMsg(tf_cg_thruster.transform.rotation, quaternion);
+
+//                             // Convert quaternion to a rotation matrix
+//                             tf2::Matrix3x3 rotation_matrix(quaternion);
+
+//                             // Calculate the angle in the x-z plane
+//                             tf2::Vector3 thruster_x_direction = rotation_matrix.getColumn(0); // UnitX direction in thruster frame
+//                             thruster_x_direction.setY(0);  // Project onto the x-z plane
+//                             thruster_x_direction.normalize();
+
+//                             tf2::Vector3 cg_x_direction(1, 0, 0);  // X direction in cg_link's x-z plane
+
+//                             // Compute the angle in radians using dot product
+//                             double angle = acos(cg_x_direction.dot(thruster_x_direction));
+
+//                             /*
+//                             Determine the sign of the angle using cross product
+//                             since acos returns the angle between 0 and pi always.
+//                             */
+//                             tf2::Vector3 cross_product = cg_x_direction.cross(thruster_x_direction);
+//                             if (cross_product.z() < 0) {
+//                                 angle = -angle;
+//                             }
+
+//                             current_angle = angle;
+
+//                             m_mvp_control->set_current_angle(&index, current_angle);
+
+//                         } catch (tf2::TransformException &ex) {
+//                             ROS_WARN("%s", ex.what());
+//                             continue; // Skip this iteration if the transform is unavailable
+//                         }
+
+//                         // Calculate the angle to be requested
+//                         double x = needed_forces(i);
+//                         double y = needed_forces(i + 1);
+//                         double calculated_angle = atan2(y, x); 
+
+//                         // Calculate the new angle since it is needed in body frame within -pi to pi
+//                         double new_angle = current_angle + calculated_angle;
+                        
+//                         m_thrusters.at(i)->request_joint_angles(joint_name, new_angle);
+
+//                         i += 2;  // Move to the next pair of articulated thrusters
+//                     } else {
+//                         ROS_WARN_STREAM("Expected articulated partner for thruster " << i << " but none found. Skipping.");
+//                         i++; // Just move to next to avoid infinite loop in case of error
+//                     }
+//                 } else {
+//                     m_thrusters.at(i)->request_force(needed_forces(i));
+//                     //not articulated so no rotation state
+//                     m_mvp_control->set_current_angle(&index, 0);
+//                     i++; // Move to the next thruster
+//                 }
+
+//             }
+//         }
+
+//         /**
+//          * Record the time that loop ends. Later, it will feed the PID
+//          * controller.
+//          */
+//         pt = ros::Time::now().toSec();
+//     }
+// }
+
 void MvpControlROS::f_control_loop() {
-
     double pt = ros::Time::now().toSec();
-
     auto r = ros::Rate(m_controller_frequency);
 
-    while(ros::ok()) {
+    // Initialize PID gains
+    double Kp_surge = 2.0, Ki_surge = 1.0, Kd_surge = 0.5;
+    double Kp_z = 1.0, Ki_z = 0.25, Kd_z = 0.1;
+    double Kp_roll = 1.0, Ki_roll = 0.25, Kd_roll = 0.1;
+    double Kp_sway = 1.0, Ki_sway = 0.5, Kd_sway = 0.5;
+    double Kp_pitch = 1.0, Ki_pitch = 0.2, Kd_pitch = 0.5;
+    double Kp_yaw = 1.0, Ki_yaw = 0.15, Kd_yaw = 0.5;
 
-        /**
-         * Thread may not be able to sleep properly. This may happen using
-         * simulated time.
-         */
-        if(!r.sleep()) {
+    // Initialize state variables
+    State current_state = {0.0}, next_state = {0.0};
+    Eigen::VectorXd prev_errors = Eigen::VectorXd::Zero(CONTROLLABLE_DOF_LENGTH);
+    Eigen::VectorXd integral_errors = Eigen::VectorXd::Zero(CONTROLLABLE_DOF_LENGTH);
+
+    while (ros::ok()) {
+        if (!r.sleep()) {
             continue;
         }
 
-        /**
-         * Check if controller is enabled or not.
-         */
-        if(!m_enabled) {
-             for(int i = 0 ; i < m_thrusters.size() ; i++) {
+        if (!m_enabled) {
+            for (int i = 0; i < m_thrusters.size(); i++) {
                 m_thrusters.at(i)->command(0);
             }
             continue;
         }
 
-        /**
-         * Compute the state of the system. Continue on failure. This may
-         * happen when transform tree is not ready.
-         */
-        if(not f_compute_process_values()) {
+        if (!f_compute_process_values()) {
             continue;
         }
 
         Eigen::VectorXd needed_forces;
-
-        /**
-         * Get time difference to feed PID controller
-         */
         double dt = ros::Time::now().toSec() - pt;
 
-        /**
-         * Calculate forces to be requested from thrusters. If operation fails,
-         * do not send commands to thrusters.
-         */
+        ROS_INFO("Before calculate_needed_forces");
+        if (m_mvp_control->calculate_needed_forces(&needed_forces, dt)) {
+            ROS_INFO("After calculate_needed_forces");
 
-        if(m_mvp_control->calculate_needed_forces(&needed_forces, dt)) {
-            for(int i = 0; i < m_thrusters.size(); ) {
+            for (int i = 0; i < m_thrusters.size();) {
                 auto is_articulated = m_thrusters.at(i)->get_is_articulated();
 
                 int index = i;
 
-                if(is_articulated == 1) {
-                    if(i + 1 < m_thrusters.size()) {
+                if (is_articulated == 1) {
+                    if (i + 1 < m_thrusters.size()) {
                         auto combined_force = sqrt(pow(needed_forces(i), 2) + pow(needed_forces(i + 1), 2));
                         m_thrusters.at(i)->request_force(combined_force);
 
                         std::string thruster_link_id = m_thrusters.at(i)->get_link_id();
-                        double current_angle = 0.0;  // This will hold the computed angle in the x-z plane
+                        double current_angle = 0.0;
                         std::string joint_name = m_tf_prefix + m_thrusters.at(i)->get_servo_joints().at(0);
 
                         try {
                             auto tf_cg_thruster = m_transform_buffer.lookupTransform(
-                                m_cg_link_id, 
-                                thruster_link_id,  
+                                m_cg_link_id,
+                                thruster_link_id,
                                 ros::Time(0),
                                 ros::Duration(3.0)
                             );
 
-                            // Extract the rotation part as a quaternion
-                            tf2::Quaternion quaternion;
-                            tf2::fromMsg(tf_cg_thruster.transform.rotation, quaternion);
+                            Eigen::Isometry3d eigen_tf = tf2::transformToEigen(tf_cg_thruster);
 
-                            // Convert quaternion to a rotation matrix
-                            tf2::Matrix3x3 rotation_matrix(quaternion);
-
-                            // Calculate the angle in the x-z plane
-                            tf2::Vector3 thruster_x_direction = rotation_matrix.getColumn(0); // UnitX direction in thruster frame
-                            thruster_x_direction.setY(0);  // Project onto the x-z plane
+                            Eigen::Vector3d thruster_x_direction = eigen_tf.rotation() * Eigen::Vector3d::UnitX();
+                            thruster_x_direction.y() = 0;
                             thruster_x_direction.normalize();
 
-                            tf2::Vector3 cg_x_direction(1, 0, 0);  // X direction in cg_link's x-z plane
+                            Eigen::Vector3d cg_x_direction(1, 0, 0);
 
-                            // Compute the angle in radians using dot product
                             double angle = acos(cg_x_direction.dot(thruster_x_direction));
 
-                            /*
-                            Determine the sign of the angle using cross product
-                            since acos returns the angle between 0 and pi always.
-                            */
-                            tf2::Vector3 cross_product = cg_x_direction.cross(thruster_x_direction);
+                            Eigen::Vector3d cross_product = cg_x_direction.cross(thruster_x_direction);
                             if (cross_product.z() < 0) {
                                 angle = -angle;
                             }
@@ -1085,38 +1285,94 @@ void MvpControlROS::f_control_loop() {
 
                         } catch (tf2::TransformException &ex) {
                             ROS_WARN("%s", ex.what());
-                            continue; // Skip this iteration if the transform is unavailable
+                            continue;
                         }
 
-                        // Calculate the angle to be requested
                         double x = needed_forces(i);
                         double y = needed_forces(i + 1);
-                        double calculated_angle = atan2(y, x); 
-
-                        // Calculate the new angle since it is needed in body frame within -pi to pi
+                        double calculated_angle = atan2(y, x);
                         double new_angle = current_angle + calculated_angle;
-                        
+
                         m_thrusters.at(i)->request_joint_angles(joint_name, new_angle);
 
-                        i += 2;  // Move to the next pair of articulated thrusters
+                        i += 2;
                     } else {
                         ROS_WARN_STREAM("Expected articulated partner for thruster " << i << " but none found. Skipping.");
-                        i++; // Just move to next to avoid infinite loop in case of error
+                        i++;
                     }
                 } else {
                     m_thrusters.at(i)->request_force(needed_forces(i));
-                    //not articulated so no rotation state
                     m_mvp_control->set_current_angle(&index, 0);
-                    i++; // Move to the next thruster
+                    i++;
                 }
-
             }
         }
 
-        /**
-         * Record the time that loop ends. Later, it will feed the PID
-         * controller.
-         */
+        // Q-learning integration
+        Eigen::VectorXd errors = m_mvp_control->get_state_error();
+        Eigen::VectorXd d_errors = (errors - prev_errors) / dt;
+        integral_errors += errors * dt;
+
+        // Update current state
+        current_state = {
+            errors(DOF::SURGE), errors(DOF::Z), errors(DOF::ROLL),
+            errors(DOF::SWAY), errors(DOF::PITCH), errors(DOF::YAW),
+            d_errors(DOF::SURGE), d_errors(DOF::Z), d_errors(DOF::ROLL),
+            d_errors(DOF::SWAY), d_errors(DOF::PITCH), d_errors(DOF::YAW),
+            integral_errors(DOF::SURGE), integral_errors(DOF::Z), integral_errors(DOF::ROLL),
+            integral_errors(DOF::SWAY), integral_errors(DOF::PITCH), integral_errors(DOF::YAW)
+        };
+
+        ROS_INFO("Before choose_action");
+        Action action = choose_action(current_state);
+        ROS_INFO("After choose_action");
+
+        // Apply action to PID gains
+        apply_action(action, Kp_surge, Ki_surge, Kd_surge, Kp_z, Ki_z, Kd_z, Kp_roll, Ki_roll, Kd_roll, Kp_sway, Ki_sway, Kd_sway, Kp_pitch, Ki_pitch, Kd_pitch, Kp_yaw, Ki_yaw, Kd_yaw);
+
+        // Log PID gains and errors
+        ROS_INFO("PID Gains: Kp_surge: %f, Ki_surge: %f, Kd_surge: %f, Kp_z: %f, Ki_z: %f, Kd_z: %f, Kp_roll: %f, Ki_roll: %f, Kd_roll: %f, Kp_sway: %f, Ki_sway: %f, Kd_sway: %f, Kp_pitch: %f, Ki_pitch: %f, Kd_pitch: %f, Kp_yaw: %f, Ki_yaw: %f, Kd_yaw: %f",
+                 Kp_surge, Ki_surge, Kd_surge, Kp_z, Ki_z, Kd_z, Kp_roll, Ki_roll, Kd_roll, Kp_sway, Ki_sway, Kd_sway, Kp_pitch, Ki_pitch, Kd_pitch, Kp_yaw, Ki_yaw, Kd_yaw);
+        ROS_INFO("Errors: Surge: %f, Sway: %f, Z: %f, Roll: %f, Pitch: %f, Yaw: %f",
+                 errors(DOF::SURGE), errors(DOF::SWAY), errors(DOF::Z),
+                 errors(DOF::ROLL), errors(DOF::PITCH), errors(DOF::YAW));
+
+        // Calculate reward based on the new state
+        double reward = -errors.norm() - 0.01 * (fabs(Kp_surge) + fabs(Ki_surge) + fabs(Kd_surge) +
+                                                 fabs(Kp_z) + fabs(Ki_z) + fabs(Kd_z) +
+                                                 fabs(Kp_roll) + fabs(Ki_roll) + fabs(Kd_roll) +
+                                                 fabs(Kp_sway) + fabs(Ki_sway) + fabs(Kd_sway) +
+                                                 fabs(Kp_pitch) + fabs(Ki_pitch) + fabs(Kd_pitch) +
+                                                 fabs(Kp_yaw) + fabs(Ki_yaw) + fabs(Kd_yaw));
+        ROS_INFO("Reward: %f", reward);
+
+        // Update next state
+        next_state = current_state;
+
+        ROS_INFO("Before update_q_table");
+        update_q_table(current_state, action, reward, next_state);
+        ROS_INFO("After update_q_table");
+
+        // Debug Q-table
+        if (q_table.find(current_state) != q_table.end()) {
+            ROS_INFO("Q-table entry for current state found. Q-values: ");
+            for (size_t i = 0; i < q_table[current_state].size(); ++i) {
+               // ROS_INFO("Action %zu: %f", i, q_table[current_state][i]);
+            }
+        } else {
+            ROS_WARN("Q-table entry for current state not found.");
+        }
+
+        if (q_table.find(next_state) != q_table.end()) {
+            ROS_INFO("Q-table entry for next state found. Q-values: ");
+            for (size_t i = 0; i < q_table[next_state].size(); ++i) {
+                //ROS_INFO("Action %zu: %f", i, q_table[next_state][i]);
+            }
+        } else {
+            ROS_WARN("Q-table entry for next state not found.");
+        }
+
+        prev_errors = errors;
         pt = ros::Time::now().toSec();
     }
 }

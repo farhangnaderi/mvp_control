@@ -66,7 +66,7 @@
 
 #include "mvp_control.h"
 #include "thruster_ros.h"
-
+#include "q_learning.h"
 
 /*******************************************************************************
  * Eigen

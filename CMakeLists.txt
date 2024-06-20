@@ -70,6 +70,7 @@ add_executable(${PROJECT_NAME}_ros_node
   src/mvp_control/thruster_ros.cpp
   src/mvp_control/mvp_control.cpp
   src/mvp_control/mvp_control_ros.cpp
+  src/mvp_control/q_learning.cpp 
 )
 
 add_dependencies(${PROJECT_NAME}_ros_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
