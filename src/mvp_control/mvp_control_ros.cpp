@@ -404,6 +404,8 @@ void MvpControlROS::initialize() {
         )
     );
 
+    ROS_INFO("******* MVP Controller Ready *******" );
+
 }
 
 void MvpControlROS::f_generate_control_allocation_from_user() {
