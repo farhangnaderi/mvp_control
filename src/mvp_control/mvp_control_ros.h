@@ -140,6 +140,12 @@ namespace ctrl {
         //! @brief Controller frequency
         double m_controller_frequency;
 
+        //! @brief Controller timeout
+        double m_no_setpoint_timeout;
+
+        //! @brief setpont timer
+        double setpoint_timer;
+
         //! @brief Get control modes ros service server
         ros::ServiceServer m_get_control_modes_server;
 

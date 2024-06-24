@@ -81,6 +81,12 @@ MvpControlROS::MvpControlROS()
         10.0
     );
 
+    m_pnh.param<double>(
+        CONF_NO_SETPOINT_TIMEOUT,
+        m_no_setpoint_timeout,
+        10.0
+    );
+
     /**
      * Initialize Subscribers
      */
@@ -798,7 +804,8 @@ bool MvpControlROS::f_compute_process_values() {
 void MvpControlROS::f_control_loop() {
 
     double pt = ros::Time::now().toSec();
-
+    setpoint_timer = ros::Time::now().toSec();
+    
     auto r = ros::Rate(m_controller_frequency);
 
     while(ros::ok()) {
@@ -811,21 +818,25 @@ void MvpControlROS::f_control_loop() {
             continue;
         }
 
-        /**
-         * Check if controller is enabled or not.
-         */
-        if(!m_enabled) {
-             for(int i = 0 ; i < m_thrusters.size() ; i++) {
-                m_thrusters.at(i)->command(0);
-            }
-            continue;
-        }
 
         /**
          * Compute the state of the system. Continue on failure. This may
          * happen when transform tree is not ready.
          */
         if(not f_compute_process_values()) {
+            continue;
+        }
+
+        /**
+         * Check if controller is enabled or not.
+         */
+        double time_since_last_setpoint = ros::Time::now().toSec() - setpoint_timer;
+        // printf("timeout = %lf, %lf\r\n", time_since_last_setpoint, m_no_setpoint_timeout);
+        // if(!m_enabled) {
+        if(!m_enabled || time_since_last_setpoint > m_no_setpoint_timeout) {
+             for(int i = 0 ; i < m_thrusters.size() ; i++) {
+                m_thrusters.at(i)->command(0);
+            }
             continue;
         }
 
@@ -864,6 +875,7 @@ void MvpControlROS::f_cb_msg_odometry(
 
 void MvpControlROS::f_cb_srv_set_point(
         const mvp_msgs::ControlProcess::ConstPtr &msg) {
+    setpoint_timer = ros::Time::now().toSec();
     f_amend_set_point(*msg);
 }
 
@@ -1492,9 +1504,9 @@ bool MvpControlROS::f_amend_set_point(
                 rpy_world.y(),
                 rpy_world.z()
             );
-            printf("setpoint frame=%s\r\n", set_point.header.frame_id.c_str());
+            // printf("setpoint frame=%s\r\n", set_point.header.frame_id.c_str());
             // std::cout<<"xyz =\n"<<p_world<<std::endl;
-            std::cout<<"rpy =\n"<<rpy_world<<std::endl;
+            // std::cout<<"rpy =\n"<<rpy_world<<std::endl;
         }
         else
         {
