@@ -1447,6 +1447,7 @@ bool MvpControlROS::f_amend_set_point(
     }
 
     Eigen::Vector3d p_world, rpy_world;
+    Eigen::Vector3d p_world2, rpy_world2;
     try {
         // Transform the position of setpoint frame_id to world_link
         auto tf_world_setpoint = m_transform_buffer.lookupTransform(
@@ -1454,66 +1455,112 @@ bool MvpControlROS::f_amend_set_point(
             set_point.header.frame_id,
             ros::Time(0)
         );
+
+        //New approach
         if (abs(tf_world_setpoint.header.stamp.toSec() - ros::Time::now().toSec()) < 10 || tf_world_setpoint.header.stamp.toSec()==0.0) 
-        { 
-            
-            auto tf_eigen = tf2::transformToEigen(tf_world_setpoint);
+        {
+            geometry_msgs::PoseStamped setpoint_origin, setpoint_converted;
+            setpoint_origin.header = set_point.header;
+            setpoint_origin.pose.position.x = set_point.position.x;
+            setpoint_origin.pose.position.y = set_point.position.y;
+            setpoint_origin.pose.position.z = set_point.position.z;
+            tf2::Quaternion q;
+            q.setRPY(set_point.orientation.x, set_point.orientation.y, set_point.orientation.z);
+            setpoint_origin.pose.orientation.x = q.x();
+            setpoint_origin.pose.orientation.y = q.y();
+            setpoint_origin.pose.orientation.z = q.z();
+            setpoint_origin.pose.orientation.w = q.w();
 
-            p_world = tf_eigen.rotation() * 
-                                    Eigen::Vector3d(set_point.position.x, set_point.position.y, set_point.position.z)
-                                    + tf_eigen.translation();
-            ///convert euler angle into a different frame
-            ///find the rotation matrix from the set point frame to the desired pose.
-            Eigen::Matrix3d R;
-            R = Eigen::AngleAxisd(set_point.orientation.z, Eigen::Vector3d::UnitZ()) *
-                                Eigen::AngleAxisd(set_point.orientation.y, Eigen::Vector3d::UnitY()) *
-                                Eigen::AngleAxisd(set_point.orientation.x, Eigen::Vector3d::UnitX());
-       
-            //find rotation matrix from the world link to the setpoint frame.
-            auto tf_1 = m_transform_buffer.lookupTransform(
-                set_point.header.frame_id,
-                m_world_link_id,
-                ros::Time(0)
+            //convert
+            setpoint_converted.header = set_point.header;
+            setpoint_converted.header.frame_id = m_world_link_id;
+
+            tf2::doTransform(setpoint_origin, setpoint_converted,tf_world_setpoint);
+            tf2::Quaternion quat;
+            quat.setW(setpoint_converted.pose.orientation.w);
+            quat.setX(setpoint_converted.pose.orientation.x);
+            quat.setY(setpoint_converted.pose.orientation.y);
+            quat.setZ(setpoint_converted.pose.orientation.z);
+
+           
+            p_world.x() = setpoint_converted.pose.position.x;
+            p_world.y() = setpoint_converted.pose.position.y;
+            p_world.z() = setpoint_converted.pose.position.z;
+
+            tf2::Matrix3x3(quat).getRPY(
+                rpy_world.x(),
+                rpy_world.y(),
+                rpy_world.z()
             );
-
-            if (abs(tf_1.header.stamp.toSec() - ros::Time::now().toSec()) < 10 || tf_1.header.stamp.toSec()==0.0) 
-            { 
-            
-                auto tf_1_eigen = tf2::transformToEigen(tf_1);
-                //find the total rotation matrix from the world link to the desired pose.
-                Eigen::Matrix3d R_set_point =  tf_1_eigen.rotation() *R;
-                // Eigen::Vector3d euler_angles = R_set_point.eulerAngles(2,1,0); // ZYX order
-                // rpy_world.z() = euler_angles[0];
-                // rpy_world.y() = euler_angles[1];
-                // rpy_world.x() = euler_angles[2];
-
-                // printf("from eigen: %lf, %lf, %lf\r\n",rpy_world.x(), rpy_world.y(), rpy_world.z());
-
-                //pitch angle
-                rpy_world.y() = asin(-R_set_point(2, 0));
-
-                // Calculate yaw (rotation about Z-axis)
-                rpy_world.z() = atan2(R_set_point(1, 0), R_set_point(0, 0));
-
-                // Calculate roll (rotation about X-axis)
-                rpy_world.x() = atan2(R_set_point(2, 1), R_set_point(2, 2));
-                // printf("from code: %lf, %lf, %lf\r\n",rpy_world.x(), rpy_world.y(), rpy_world.z());
-
-
-            }
-            else
-            {
-                ROS_WARN( "%s to %s TF too old!", set_point.header.frame_id.c_str(), m_world_link_id.c_str() );
-                return false;
-            }
+            printf("setpoint frame=%s\r\n", set_point.header.frame_id.c_str());
+            // std::cout<<"xyz =\n"<<p_world<<std::endl;
+            std::cout<<"rpy =\n"<<rpy_world<<std::endl;
         }
         else
         {
             ROS_WARN( "%s to %s TF too old!", m_world_link_id.c_str(), set_point.header.frame_id.c_str() );
             return false;
         }
-        // rpy_world = tf_eigen.rotation() * 
-                                    // Eigen::Vector3d(set_point.orientation.x, set_point.orientation.y, set_point.orientation.z);
+
+        // if (abs(tf_world_setpoint.header.stamp.toSec() - ros::Time::now().toSec()) < 10 || tf_world_setpoint.header.stamp.toSec()==0.0) 
+        // { 
+            
+        //     auto tf_eigen = tf2::transformToEigen(tf_world_setpoint);
+
+        //     p_world2 = tf_eigen.rotation() * 
+        //                             Eigen::Vector3d(set_point.position.x, set_point.position.y, set_point.position.z)
+        //                             + tf_eigen.translation();
+        //     ///convert euler angle into a different frame
+        //     ///find the rotation matrix from the set point frame to the desired pose.
+        //     Eigen::Matrix3d R;
+        //     R = Eigen::AngleAxisd(set_point.orientation.z, Eigen::Vector3d::UnitZ()) *
+        //                         Eigen::AngleAxisd(set_point.orientation.y, Eigen::Vector3d::UnitY()) *
+        //                         Eigen::AngleAxisd(set_point.orientation.x, Eigen::Vector3d::UnitX());
+       
+        //     //find rotation matrix from the world link to the setpoint frame.
+        //     auto tf_1 = m_transform_buffer.lookupTransform(
+        //         set_point.header.frame_id,
+        //         m_world_link_id,
+        //         ros::Time(0)
+        //     );
+
+        //     if (abs(tf_1.header.stamp.toSec() - ros::Time::now().toSec()) < 10 || tf_1.header.stamp.toSec()==0.0) 
+        //     { 
+            
+        //         auto tf_1_eigen = tf2::transformToEigen(tf_1);
+        //         //find the total rotation matrix from the world link to the desired pose.
+        //         Eigen::Matrix3d R_set_point =  tf_1_eigen.rotation() *R;
+        //         // Eigen::Vector3d euler_angles = R_set_point.eulerAngles(2,1,0); // ZYX order
+        //         // rpy_world.z() = euler_angles[0];
+        //         // rpy_world.y() = euler_angles[1];
+        //         // rpy_world.x() = euler_angles[2];
+
+        //         // printf("from eigen: %lf, %lf, %lf\r\n",rpy_world.x(), rpy_world.y(), rpy_world.z());
+
+        //         //pitch angle
+        //         rpy_world2.y() = asin(-R_set_point(2, 0));
+
+        //         // Calculate yaw (rotation about Z-axis)
+        //         rpy_world2.z() = atan2(R_set_point(1, 0), R_set_point(0, 0));
+
+        //         // Calculate roll (rotation about X-axis)
+        //         rpy_world2.x() = atan2(R_set_point(2, 1), R_set_point(2, 2));
+
+        //         // printf("from code: %lf, %lf, %lf\r\n",rpy_world.x(), rpy_world.y(), rpy_world.z());
+        //         std::cout<<"original xyz =\n"<<p_world2<<std::endl;
+        //         std::cout<<"original rpy =\n"<<rpy_world2<<std::endl;
+        //     }
+        //     else
+        //     {
+        //         ROS_WARN( "%s to %s TF too old!", set_point.header.frame_id.c_str(), m_world_link_id.c_str() );
+        //         return false;
+        //     }
+        // }
+        // else
+        // {
+        //     ROS_WARN( "%s to %s TF too old!", m_world_link_id.c_str(), set_point.header.frame_id.c_str() );
+        //     return false;
+        // }
 
         //assume the set point uvw and pqr are in the m_cg_link_id
 

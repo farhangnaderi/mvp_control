@@ -37,13 +37,15 @@
 #include "tf2/LinearMath/Matrix3x3.h"
 #include "tf2_eigen/tf2_eigen.h"
 #include "tf2_ros/transform_listener.h"
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2/LinearMath/Quaternion.h>
 
 #include "std_msgs/Float32.h"
 #include "std_srvs/Empty.h"
 #include "std_srvs/Trigger.h"
 #include "nav_msgs/Odometry.h"
 #include "dynamic_reconfigure/server.h"
-
+#include "geometry_msgs/PoseStamped.h"
 #include "mvp_control/PIDConfig.h"
 
 #include "mvp_msgs/PIDgains.h"
