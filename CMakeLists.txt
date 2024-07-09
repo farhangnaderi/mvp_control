@@ -1,13 +1,9 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(mvp_control)
 
-# add_compile_options(-std=c++17)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-## Find catkin macros and libraries
-## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
-## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   nav_msgs
   roscpp
@@ -16,33 +12,26 @@ find_package(catkin REQUIRED COMPONENTS
   tf2_ros
   dynamic_reconfigure
   mvp_msgs
+  q_learning
 )
 
 find_package(GSL REQUIRED)
-
 find_package(Eigen3 REQUIRED)
 add_definitions(${EIGEN_DEFINITIONS})
 
-## System dependencies are found with CMake's conventions
 find_package(Boost REQUIRED COMPONENTS system regex)
 
-## Generate dynamic reconfigure parameters in the 'cfg' folder
 generate_dynamic_reconfigure_options(
   cfg/dynamic_reconfigure_pid.cfg
 )
 
 catkin_package(
   INCLUDE_DIRS include
-#  LIBRARIES mvp_control
-  CATKIN_DEPENDS nav_msgs roscpp sensor_msgs std_msgs mvp_msgs
-#  DEPENDS system_lib
+  CATKIN_DEPENDS nav_msgs roscpp sensor_msgs std_msgs mvp_msgs q_learning
 )
 
-###########
-## Build ##
-###########
 include(FetchContent)
-# OSQP
+
 if (NOT TARGET osqp-cpp)
   set (PYTHON OFF CACHE INTERNAL "Turn off python for OSQP-CPP")
   message(STATUS "${PROJECT_NAME}: `osqp-cpp` targets not found. Attempting to fetch contents...")
@@ -56,11 +45,11 @@ else()
   message(STATUS "osqp-cpp: `osqp` targets found.")
 endif()
 
-
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIR}
+  ${q_learning_INCLUDE_DIRS}
 )
 
 add_executable(${PROJECT_NAME}_ros_node
@@ -78,6 +67,7 @@ target_link_libraries(${PROJECT_NAME}_ros_node
   osqp-cpp
   gsl
   ${catkin_LIBRARIES}
+  q_learning
 )
 
 #############

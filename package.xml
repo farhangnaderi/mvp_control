@@ -25,6 +25,7 @@
   <depend>libgsl</depend>
   <depend>mvp_msgs</depend>
   <depend>dynamic_reconfigure</depend>
+  <depend>q_learning</depend>
   <doc_depend>doxygen</doc_depend>
 
   <!-- The export tag contains other, unspecified, tags -->

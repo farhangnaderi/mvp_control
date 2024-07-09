@@ -1,31 +1,3 @@
-/*
-    This file is part of MVP-Control program.
-
-    MVP-Control is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    MVP-Control is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with MVP-Control.  If not, see <https://www.gnu.org/licenses/>.
-
-    Author: Emir Cem Gezer
-    Email: emircem@uri.edu;emircem.gezer@gmail.com
-    Year: 2022
-
-    Author: Farhang Naderi
-    Email: farhang.naderi@uri.edu;farhang.nba@gmail.com
-    Year: 2024
-
-    Copyright (C) 2024 Smart Ocean Systems Laboratory
-*/
-
-
 #pragma once
 
 /*******************************************************************************
@@ -49,6 +21,11 @@
  * MVP
  */
 #include "mimo_pid.h"
+
+/*******************************************************************************
+ * Q-learning
+ */
+#include "q_learning/q_learning.h"
 
 namespace ctrl {
 /** @brief MvpControl Class
@@ -96,7 +73,7 @@ namespace ctrl {
         //! @brief TF prefix for thruster transformations
         std::string m_tf_prefix_thruster;
 
-        //! @brief Controlled grequency
+        //! @brief Controlled frequency
         double m_controller_frequency; 
 
         //! @brief Index of the current thruster
@@ -116,6 +93,9 @@ namespace ctrl {
 
         //! @brief Constants for solver
         static constexpr double kInfinity = std::numeric_limits<double>::infinity();
+
+        //! @brief Q-learning instance
+        std::unique_ptr<QLearning> m_q_learning;
 
         /** @brief Calculates PID using #MimoPID
          *
@@ -362,6 +342,12 @@ namespace ctrl {
          */
         void set_servo_speed(const decltype(m_servo_speed) &servo_speed);
 
+        /** @brief Initialize Q-learning parameters
+         *
+         * Loads Q-learning parameters from the ROS parameter server and initializes the Q-learning instance.
+         * @param nh The ROS node handle.
+         */
+        void initialize_q_learning(const ros::NodeHandle &nh);
     };
 
 }
