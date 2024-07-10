@@ -225,6 +225,38 @@ MvpControlROS::MvpControlROS()
      */
     m_mvp_control.reset(new MvpControl());
 
+    /**
+     * Initialize the URDF model
+     */
+    std::string urdf_param_name;
+    m_pnh.param("urdf_param", urdf_param_name, std::string("robot_description"));
+    if (!m_model.initParam(urdf_param_name)) {
+        ROS_ERROR("Failed to parse URDF file");
+    } else {
+        ROS_INFO("Successfully parsed URDF file");
+
+        // Log all joint names for debugging
+        for (const auto& joint : m_model.joints_) {
+            ROS_INFO("Joint in URDF: %s", joint.first.c_str());
+        }
+    }
+}
+
+bool ctrl::MvpControlROS::f_getJointLimits(const urdf::Model &model, const std::string &joint_name, double &lower, double &upper)
+{
+    auto joint = model.getJoint(joint_name);
+    if (joint) {
+        if (joint->limits) {
+            lower = joint->limits->lower;
+            upper = joint->limits->upper;
+            return true;
+        } else {
+            ROS_WARN("Joint '%s' found but no limits defined", joint_name.c_str());
+        }
+    } else {
+        ROS_WARN("Joint '%s' not found in URDF model", joint_name.c_str());
+    }
+    return false;
 }
 
 void MvpControlROS::f_generate_control_allocation_matrix() {
@@ -460,20 +492,30 @@ void MvpControlROS::f_generate_thrusters() {
         in case no input available in config file.
         */
 
-        if (!m_pnh.getParam(std::string(CONF_SERVO_LIMITS) + "/" + t->get_id() + "/" + CONF_SERVO_MAX, angle_max)) {
-            ROS_WARN(" '%s' not set. Assuming as non-articulated and setting to zero.",
-                    (std::string(CONF_SERVO_LIMITS) + ":" + t->get_id() + ":" + CONF_SERVO_MAX).c_str());
-        } else {
-            t->m_angle_max = angle_max;
+        auto servo_joints = t->get_servo_joints();
+        if (servo_joints.empty()) {
+            ROS_WARN("Thruster '%s' has no servo joints defined.", t->get_id().c_str());
+            continue; // Skip this thruster if no servo joints are defined
         }
 
-        if (!m_pnh.getParam(std::string(CONF_SERVO_LIMITS) + "/" + t->get_id() + "/" + CONF_SERVO_MIN, angle_min)) {
-            ROS_WARN(" '%s' not set. Assuming as non-articulated and setting to zero.",
-                    (std::string(CONF_SERVO_LIMITS) + ":" + t->get_id() + ":" + CONF_SERVO_MIN).c_str());
+        std::string joint_name = m_tf_prefix + servo_joints.at(0); // Assuming get_servo_joints().at(0) returns the correct joint name
+
+        ROS_INFO("Checking joint '%s'", joint_name.c_str()); // Log the joint name to verify
+
+        if (!f_getJointLimits(m_model, joint_name, angle_min, angle_max)) {
+            ROS_WARN("Failed to get joint limits for joint '%s'. Setting to zero.", 
+            joint_name.c_str());
+
+            angle_min = 0.0;
+            angle_max = 0.0;
+
         } else {
-            t->m_angle_min = angle_min;
+            ROS_INFO("Joint '%s': angle_min = %f, angle_max = %f", 
+            joint_name.c_str(), angle_min, angle_max);        
         }
 
+        t->m_angle_max = angle_max;
+        t->m_angle_min = angle_min;
     }
 }
 
