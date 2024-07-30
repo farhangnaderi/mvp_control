@@ -25,262 +25,369 @@
     Copyright (C) 2024 Smart Ocean Systems Laboratory
 */
 
-#include "thruster_ros.h"
+#pragma once
 
-#include "utility"
-#include "exception.hpp"
-#include "mvp_control/dictionary.h"
+#include "ros/ros.h"
+#include "std_msgs/Float64.h"
+#include "Eigen/Dense"
+#include "polynomial_solver.h"
+#include "sensor_msgs/JointState.h"
 
-using namespace ctrl;
+namespace ctrl {
 
-ThrusterROS::ThrusterROS() 
-        : m_nh() ,
-        m_pnh("~")
-{
-    m_poly_solver.reset(new PolynomialSolver());
+    class MvpControlROS;
 
-}
+    /** @brief Thruster class for managing data
+     *
+     */
+    class ThrusterROS {
+    private:
 
-ThrusterROS::ThrusterROS(std::string id, std::string topic_id, Eigen::VectorXd contribution_vector) :
-        m_id(std::move(id)),
-        m_thrust_command_topic_id(std::move(topic_id)),
-        m_contribution_vector(std::move(contribution_vector))
-{
+        friend MvpControlROS;
 
-    m_thrust_publisher = m_nh.advertise<std_msgs::Float64>(
-        m_thrust_command_topic_id, 10);
+        //! @brief Public node handler
+        ros::NodeHandle m_nh;
 
-    m_poly_solver.reset(new PolynomialSolver());
-}
+        //! @brief Private node handler for accessing private parameters
+        ros::NodeHandle m_pnh;
+        
+        //! @brief Thruster ID
+        std::string m_id;
 
-auto ThrusterROS::get_thrust_command_topic_id() -> decltype(m_thrust_command_topic_id) {
-    return m_thrust_command_topic_id;
-}
+        //! @brief Thrust command topic ID
+        std::string m_thrust_command_topic_id;
 
-void ThrusterROS::set_thrust_command_topic_id(const decltype(m_thrust_command_topic_id) &topic_id) {
-    m_thrust_command_topic_id = topic_id;
-}
+        //! @brief Thruster force topic id
+        std::string m_thrust_force_topic_id;
 
-auto ThrusterROS::get_thrust_force_topic_id() -> decltype(this->m_thrust_force_topic_id) {
-    return m_thrust_force_topic_id;
-}
+        //! @brief Servo command topic id
+        std::string m_servo_command_topic_id;
+        
+        //! @brief thruster link id
+        std::string m_link_id;
 
-void ThrusterROS::set_thrust_force_topic_id(const decltype(m_thrust_force_topic_id) &topic_id) {
-    m_thrust_force_topic_id = topic_id;
-}
+        //! @brief servo link id
+        std::string m_servo_link_id;
 
-auto ThrusterROS::get_servo_command_topic_id() -> decltype(m_servo_command_topic_id) {
-    return m_servo_command_topic_id;
-}
+        //! @brief thruster frame id
+        std::string m_frame_id;
 
-void ThrusterROS::set_servo_command_topic_id(const decltype(m_servo_command_topic_id) &topic_id) {
-    m_servo_command_topic_id = topic_id;
-}
-auto ThrusterROS::get_joint_state_topic_id() -> decltype(m_joint_state_topic_id) {
-    return m_joint_state_topic_id;
-}
+        std::vector<double> servo_speeds; 
 
-void ThrusterROS::set_joint_state_topic_id(const decltype(m_joint_state_topic_id) &topic_id) {
-    m_joint_state_topic_id = topic_id;
-}
+        //! @brief Transform prefix
+        std::string m_tf_prefix_thruster;
 
-auto ThrusterROS::get_joint_state_desired_topic_id() -> decltype(m_joint_state_desired_topic_id) {
-    return m_joint_state_desired_topic_id;
-}
+        /** @brief Thruster contribution vector
+         *
+         * This vector defines a column in control allocation matrix.
+         * Each element in the vector describes contribution on
+         * vehicle motion of the thruster in each degree of freedom
+         */
+        Eigen::VectorXd m_contribution_vector;
 
-void ThrusterROS::set_joint_state_desired_topic_id(const decltype(m_joint_state_desired_topic_id) &topic_id) {
-    m_joint_state_desired_topic_id = topic_id;
-}
+        /** @brief Stores the IDs of servo joints associated with this thruster.
+         *
+         * This vector contains the IDs of all servo joints that are associated
+         * with a particular thruster. Each thruster may control or affect multiple
+         * servo joints, and this variable maps a thruster to its corresponding
+         * servo joints. 
+         */
+        std::vector<std::string> servo_joints; 
 
-auto ThrusterROS::get_id() -> decltype(m_id) {
-    return m_id;
-}
+        //! @brief Thrust publisher
+        ros::Publisher m_thrust_publisher;
 
-void ThrusterROS::set_id(const decltype(m_id)& thruster_id) {
-    m_id = thruster_id;
-}
+        //! @brief Servo angle command publisher
+        ros::Publisher m_servo_command_publisher;
 
-auto ThrusterROS::get_contribution_vector() -> decltype(m_contribution_vector) {
-    return m_contribution_vector;
-}
+        //! @brief Thrust force publisher
+        ros::Publisher m_force_publisher;
 
-void ThrusterROS::set_contribution_vector(const decltype(m_contribution_vector)& contribution_vector) {
-    m_contribution_vector = contribution_vector;
-}
+        //! @brief Servo Joint publisher
+        ros::Publisher m_joint_state_publisher;
 
-void ThrusterROS::set_servo_joints(const std::vector<std::string>& joints) {
-    servo_joints = joints;
-}
+        //! @brief Joint state topic ID
+        std::string m_joint_state_topic_id;
 
-std::vector<std::string> ThrusterROS::get_servo_joints() const {
-    return servo_joints;
-}
+        //! @brief Joint state desired topic ID
+        std::string m_joint_state_desired_topic_id;
 
-int ThrusterROS::get_is_articulated() const {
-    return is_articulated;
-}
-void ThrusterROS::set_is_articulated(int value) {
-    is_articulated = value;
-}
+        //! @brief Polynomial solver
+        PolynomialSolver::Ptr m_poly_solver;
 
-const std::vector<double>& ThrusterROS::getServoSpeeds() const {
-    return servo_speeds;
-}
+        //! @brief Servo calibration coefficients
+        std::vector<double> servo_coeff_;  
+        
+        //! @brief Servo speed rad/s
+        double m_omega;
 
-void ThrusterROS::setServoSpeeds(const std::vector<double>& speeds) {
-    servo_speeds = speeds;
-}
+        //! @brief Maximum force limit
+        double m_force_max;
 
-void ThrusterROS::initialize() {
+        //! @brief Minimum force limit
+        double m_force_min;
 
-    if(!m_thrust_command_topic_id.empty()) {
-        m_thrust_publisher = m_nh.advertise<std_msgs::Float64>(
-            m_thrust_command_topic_id, 100);
-    } else {
-        throw control_ros_exception("empty command topic name");
-    }
+        //! @brief Maximum angle limit
+        double m_angle_max;
 
-    if(!m_thrust_command_topic_id.empty()) {
-         m_force_publisher = m_nh.advertise<std_msgs::Float64>(
-             m_thrust_force_topic_id, 100);
-    } else {
-        throw control_ros_exception("empty force topic name");
-    }
+        //! @brief Minimum angle limit
+        double m_angle_min;
 
-    if (!m_joint_state_desired_topic_id.empty()) {
-        m_joint_state_publisher = m_nh.advertise<sensor_msgs::JointState>(
-            m_joint_state_desired_topic_id, 100);
-    } else {
-        throw control_ros_exception("empty joint state topic name");
-    }    
+        //! @brief If the thruster is articulated
+        int is_articulated;
+        
+    public:
 
-    // Initialization for the servo command topic
-    if (!m_servo_command_topic_id.empty()) {
-        m_servo_command_publisher = m_nh.advertise<std_msgs::Float64>(m_servo_command_topic_id, 100);
-    } else {
-        ROS_WARN_STREAM("Servo command topic name is empty, assuming the thruster is not articulated.");
-    }
+        //! @brief Default constructor
+        ThrusterROS();
 
-}
+        /** @brief Gets whether the thruster is articulated.
+         *
+         * @return True if the thruster is articulated, false otherwise.
+         */
+        int get_is_articulated() const;
 
-auto ThrusterROS::get_link_id() -> decltype(m_link_id) {
-    return m_link_id;
-}
+        /** @brief Sets whether the thruster is articulated.
+         *
+         * @param value True to set the thruster as articulated, false to set it as non-articulated.
+         */
+        void set_is_articulated(int value);
+        
+        /** @brief Sets the servo joints associated with the thruster.
+         *
+         * @param joints A vector of strings containing the IDs of the servo joints associated with the thruster.
+         */
+        void set_servo_joints(const std::vector<std::string>& joints);
 
-void ThrusterROS::set_link_id(const decltype(m_link_id)& link_id) {
-    m_link_id = link_id;
-}
+        /** @brief Gets the servo joints associated with the thruster.
+         *
+         * @return A vector of strings containing the IDs of the servo joints associated with the thruster.
+         */
+        std::vector<std::string> get_servo_joints() const;
 
-auto ThrusterROS::get_servo_link_id() -> decltype(m_servo_link_id) {
-    return m_servo_link_id;
-}
+        /** @brief Thruster ROS class constructor.
+         *
+         * This constructor should be used in normal operation.
+         * Initializes Thruster ID, Topic ID and contribution vector
+         *
+         * @param id
+         * @param topic_id
+         * @param contribution_vector
+         */
+        ThrusterROS(std::string id, std::string topic_id,
+                    Eigen::VectorXd contribution_vector);
 
-void ThrusterROS::set_servo_link_id(const decltype(m_servo_link_id)& servo_link_id) {
-    m_servo_link_id = servo_link_id;
-}
+        /** @brief Initializes publishers and subscribers
+         *
+         */
+        void initialize();
 
-auto ThrusterROS::get_frame_id() -> decltype(m_frame_id) {
-    return m_frame_id;
-}
+        /** @brief Trivial getter for topic id
+         *
+         * @return #ThrusterROS::m_thrust_command_topic_id
+         */
+        auto
+        get_thrust_command_topic_id() -> decltype(m_thrust_command_topic_id);
 
-void ThrusterROS::set_frame_id(const decltype(m_frame_id)& frame_id) {
-    m_frame_id = frame_id;
-}
+        /** @brief Default Setter for topic id
+         *
+         * @param topic_id
+         */
+        void set_thrust_command_topic_id(
+            const decltype(m_thrust_command_topic_id) &topic_id);
 
-void ThrusterROS::command(double cmd) {
-    std_msgs::Float64 msg;
-    msg.data = cmd;
-    m_thrust_publisher.publish(msg);
-}
+        /** @brief Trivial getter for force topic id
+         *
+         * @return #ThrusterROS::m_thrust_force_topic_id
+         */
+        auto get_thrust_force_topic_id() -> decltype(m_thrust_force_topic_id);
 
-void ThrusterROS::servo_joint_command(double cmd) {
-    std_msgs::Float64 msg;
-    msg.data = cmd;
-    m_servo_command_publisher.publish(msg);
-}
+        /** @brief Default Setter force for topic id
+         *
+         * @param topic_id
+         */
+        void set_thrust_force_topic_id(const decltype(m_thrust_force_topic_id) &topic_id);
 
-auto ThrusterROS::get_poly_solver() -> decltype(m_poly_solver) {
-    return m_poly_solver;
-}
+        /** @brief Trivial getter for servo command topic id
+         *
+         * @return #ThrusterROS::m_servo_command_topic_id
+         */
+        auto get_servo_command_topic_id() -> decltype(m_servo_command_topic_id);
 
-void ThrusterROS::set_poly_solver(decltype(m_poly_solver) solver) {
-    m_poly_solver = std::move(solver);
-}
+        /** @brief Default Setter servo command for topic id
+         *
+         * @param topic_id
+         */
+        void set_servo_command_topic_id(const decltype(m_servo_command_topic_id) &topic_id);
 
-void ThrusterROS::set_servo_coeff(const std::vector<double>& coeff) {
-    servo_coeff_ = coeff;
-}
+        /** @brief Trivial getter for joint state topic id
+         *
+         * @return The topic ID for publishing joint states
+         */
+        auto get_joint_state_topic_id() -> decltype(m_joint_state_topic_id);
 
-const std::vector<double>& ThrusterROS::get_servo_coeff() const {
-    return servo_coeff_;
-}
+        /** @brief Default Setter for joint state topic id
+         *
+         * @param topic_id The topic ID to set for publishing joint states
+         */
+        void set_joint_state_topic_id(const decltype(m_joint_state_topic_id) &topic_id);
 
-bool ThrusterROS::request_force(double N) {
-    std::vector<std::complex<double>> roots;
+        /** @brief Trivial getter for joint state topic id
+         *
+         * @return The topic ID for publishing joint states
+         */
+        auto get_joint_state_desired_topic_id() -> decltype(m_joint_state_topic_id);
 
-    std_msgs::Float64  msg;
-    msg.data = N;
-    m_force_publisher.publish(msg);
+        /** @brief Default Setter for joint state topic id
+         *
+         * @param topic_id The topic ID to set for publishing joint states
+         */
+        void set_joint_state_desired_topic_id(const decltype(m_joint_state_topic_id) &topic_id);
 
-    if(N > m_force_max) {
-        N = m_force_max;
-    } else if (N < m_force_min) {
-        N = m_force_min;
-    }
+        /** @brief Trivial getter for link id
+         *
+         * @return #ThrusterROS::m_link_id
+         */
+        auto get_link_id() -> decltype(m_link_id);
 
-    if(!m_poly_solver->solve_for_y(roots, N)) {
-        ROS_WARN_STREAM("No feasible command found for force: " << N);
-        return false;
-    }
+        /** @brief Trivial Setter for link id
+         *
+         * @param link_id
+         */
+        void set_link_id(const decltype(m_link_id) &link_id);
 
-    for(const auto& r : roots) {
-        if(r.imag() != 0){
-            continue;
-        }
+        /** @brief Trivial getter for servo_link id
+         *
+         * @return #ThrusterROS::m_servo_link_id
+         */
+        auto get_servo_link_id() -> decltype(m_servo_link_id);
 
-        if(r.real() >= 1 || r.real() < -1) {
-            continue;
-        }
+        /** @brief Trivial Setter for link id
+         *
+         * @param servo_link_id
+         */
+        void set_servo_link_id(const decltype(m_servo_link_id) &servo_link_id);
 
-        command(r.real());
+        /** @brief Trivial getter for frame id
+         *
+         * @return #ThrusterROS::m_frame_id
+         */
+        auto get_frame_id() -> decltype(m_frame_id);
 
-        break;
-    }
+        /** @brief Trivial Setter for frame id
+         *
+         * @param frame_id
+         */
+        void set_frame_id(const decltype(m_frame_id) &frame_id);
 
-    return true;
-}
+        /** @brief Trivial getter for thruster id
+         *
+         * @return #ThrusterROS::m_id
+         */
+        auto get_id() -> decltype(m_id);
 
-bool ThrusterROS::request_joint_angles(const std::string& joint_name, double requested_angle) {
+        /** @brief Trivial Setter for topic id
+         *
+         * @param thruster_id
+         */
+        void set_id(const decltype(m_id) &thruster_id);
 
-    if (!m_joint_state_publisher) {
-        ROS_ERROR("Joint state publisher is not initialized!");
-        return false;
-    }
+        /** @brief Trivial getter for contribution vector
+         *
+         * @return #ThrusterROS::m_contribution_vector
+         */
+        auto get_contribution_vector() -> decltype(m_contribution_vector);
 
-    sensor_msgs::JointState joint_state_msg;
-    // joint_state_msg.header.stamp = ros::Time::now(); 
-    joint_state_msg.name.push_back(joint_name);     
-    joint_state_msg.position.push_back(requested_angle);
+        /** @brief Trivial Setter for contribution vector
+         *
+         * @param contribution Contribution vector for the thruster
+         */
+        void set_contribution_vector(
+            const decltype(m_contribution_vector) &contribution_vector);
 
-    m_joint_state_publisher.publish(joint_state_msg); 
+        /** @brief Trivial getter for polynomial solver
+         *
+         * @return #ThrusterROS::m_poly_solver
+         */
+        auto get_poly_solver() -> decltype(m_poly_solver);
 
-    servo_joint_command(normalize_angle(requested_angle));
+        /** @brief Trivial setter for polynomial solver
+         *
+         * @param solver
+         */
+        void set_poly_solver(decltype(m_poly_solver) solver);
+  
+        /** @brief Trivial setter for servo coefficients
+         *
+         * @param coeff A vector containing the servo calibration coefficients
+         */
+        void set_servo_coeff(const std::vector<double>& coeff);
 
-    return true;
-}
+        /** @brief Trivial getter for servo coefficients
+         *
+         * @return A vector containing the servo calibration coefficients
+         */
+        const std::vector<double>& get_servo_coeff() const;
 
-double ThrusterROS::normalize_angle(double angle) const {
-    // Check that the polynomial has the expected four coefficients (slope, offset1, offset2, center)
-    if (servo_coeff_.size() != 2) {
-        throw std::runtime_error("Servo polynomial must have exactly 4 coefficients.");
-    }
+        //! @brief Generic typedef for shared pointer
+        typedef std::shared_ptr<ThrusterROS> Ptr;
 
-    double slope = servo_coeff_[0];
-    double offset = servo_coeff_[1];
+        /** @brief Trivial getter for servo speeds
+         *
+         * @return A constant reference to the vector of servo speeds
+         */
+        const std::vector<double>& getServoSpeeds() const;
 
-    // Apply the linear transformation with the chosen offset
-    double pwm = slope * angle + offset;
+        /** @brief Trivial setter for servo speeds
+         *
+         * @param speeds The vector of servo speeds to set
+         */
+        void setServoSpeeds(const std::vector<double>& speeds);
 
-    // Clamp the pwm to the range -1 to 1
-    return std::max(std::min(pwm, 1.0), -1.0);
+        /** @brief Publish thruster command
+         *
+         * Thuster command should be between -1 and 1
+         *
+         * @param cmd
+         */
+        void command(double cmd);
+
+        /** @brief Publish servo command
+         *
+         * Servo command should be between -1 and 1
+         *
+         * @param normalized_angle
+         */
+        void servo_joint_command(double normalized_angle);
+
+        /** @brief Request force from thruster
+         *
+         * This method gets input \p N as Newton and applies it to a polynomial solver
+         * that is defined with #PolynomialSolver::m_coeff.
+         *
+         * @param N force as newton
+         * @return true if polynomial is solved, false if polynomial isn't solved.
+         */
+        bool request_force(double N);
+
+        /**
+         * @brief Publishes the requested angle for a given joint name.
+         *
+         * This method publishes the desired joint angle to servo hardware
+         *
+         * @param joint_name The name of the joint.
+         * @param requested_angle The requested angle for the joint in radians.
+         * @return true if the joint state is successfully published
+         */
+        bool request_joint_angles(const std::string& joint_name, double requested_angle);
+
+        /** @brief Normalize the angle to PWM using the servo coefficients
+         *
+         * @param angle The input angle
+         * @return The normalized PWM value
+         */
+        double normalize_angle(double angle) const;
+        
+    };
+
 }

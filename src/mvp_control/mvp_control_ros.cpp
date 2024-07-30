@@ -1152,7 +1152,7 @@ void MvpControlROS::f_control_loop() {
          * Check if controller is enabled or not.
          */
         double time_since_last_setpoint = ros::Time::now().toSec() - setpoint_timer;
-        printf("timeout = %lf, %lf\r\n", time_since_last_setpoint, m_no_setpoint_timeout);
+        //printf("timeout = %lf, %lf\r\n", time_since_last_setpoint, m_no_setpoint_timeout);
         // if(!m_enabled) {
         if(!m_enabled || time_since_last_setpoint > m_no_setpoint_timeout) {
              for(int i = 0 ; i < m_thrusters.size() ; i++) {
