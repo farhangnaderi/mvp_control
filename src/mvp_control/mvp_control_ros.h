@@ -42,6 +42,7 @@
 #include "tf2_eigen/tf2_eigen.h"
 #include "tf2_ros/transform_listener.h"
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2/LinearMath/Quaternion.h>
 
 #include <urdf/model.h>
 
@@ -51,6 +52,7 @@
 #include "nav_msgs/Odometry.h"
 #include "dynamic_reconfigure/server.h"
 
+#include "geometry_msgs/PoseStamped.h"
 #include "mvp_control/PIDConfig.h"
 
 #include "mvp_msgs/PIDgains.h"
@@ -139,6 +141,12 @@ namespace ctrl {
 
         //! @brief Controller Frequency Param
         double m_controller_frequency;
+
+        //! @brief Controller timeout
+        double m_no_setpoint_timeout;
+
+        //! @brief setpont timer
+        double setpoint_timer;
 
         //! @brief Transform buffer for TF2
         tf2_ros::Buffer m_transform_buffer;
@@ -234,6 +242,17 @@ namespace ctrl {
          *  This method is called if generator_type is 'tf'
          */
         void f_generate_control_allocation_from_tf();
+
+        /**
+         * @brief Checks if required transformations are available.
+         * 
+         * Verifies the availability of the following transformations:
+         * - From the world frame to the center of gravity (CG) frame.
+         * - From the CG frame to each thruster frame.
+         * 
+         * @return True if all required transformations are found, otherwise False.
+         */
+        bool f_initial_tf_check();
 
         /** @brief Generates control allocation matrix from user input
          *

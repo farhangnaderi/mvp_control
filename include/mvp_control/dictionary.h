@@ -88,7 +88,8 @@ namespace ctrl {
     static constexpr const char * CONF_CONTROL_TF = "control_tf";
     static constexpr const char * CONF_CONTROL_TF_SERVO = "control_tf_servo";
     static constexpr const char * CONF_CONTROLLER_FREQUENCY = "controller_frequency";
-
+    static constexpr const char * CONF_NO_SETPOINT_TIMEOUT = "controller_no_setpoint_timeout";
+    
     static constexpr const char * TOPIC_SAFETY = "safety";
     static constexpr const char * TOPIC_STATUS = "status";
     static constexpr const char * TOPIC_CONTROL_PROCESS_VALUE = "controller/process/value";

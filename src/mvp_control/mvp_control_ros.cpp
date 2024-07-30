@@ -85,12 +85,18 @@ MvpControlROS::MvpControlROS()
     );
 
     if (joint_states_topic.empty()) {
-        ROS_ERROR("The joint_states_topic parameter is not set!");
+        ROS_WARN("The servo_joint_topic not set! Non-Articulated Vehicle");
     }
 
     m_pnh.param<double>(
         CONF_CONTROLLER_FREQUENCY,
         m_controller_frequency,
+        10.0
+    );
+
+    m_pnh.param<double>(
+        CONF_NO_SETPOINT_TIMEOUT,
+        m_no_setpoint_timeout,
         10.0
     );
 
@@ -365,6 +371,8 @@ void MvpControlROS::f_generate_control_allocation_matrix() {
 
 void MvpControlROS::f_generate_thrusters() {
 
+    // Parsing all the listed thrusters and servo joints
+
     if (!m_pnh.hasParam(CONF_THRUSTER_IDS)) {
         throw control_ros_exception("thruster_ids empty");
     }
@@ -414,6 +422,29 @@ void MvpControlROS::f_generate_thrusters() {
             ROS_INFO_STREAM("Thruster " << id << " is articulated with servo joint: " << it->second);
             
             m_thrusters.emplace_back(articulated_ty);
+        }
+    }
+
+    for(const auto& t : m_thrusters) {
+        std::string link_id;
+        m_pnh.param<std::string>(
+            std::string() + CONF_CONTROL_TF + "/" + t->get_id(),
+            link_id,
+            t->get_id() + "_thruster_link"
+        );
+
+        t->set_link_id(m_tf_prefix + link_id);
+    }
+    
+    for (const auto& t : m_thrusters) {
+        std::string servo_link_id;
+        std::string param_name = std::string() + CONF_CONTROL_TF_SERVO + "/" + t->get_id();
+        
+        if (m_pnh.getParam(param_name, servo_link_id)) {
+            t->set_servo_link_id(m_tf_prefix + servo_link_id);
+        } else {
+            ROS_INFO("Parameter %s not found. No Servo Link!", param_name.c_str());
+            continue;
         }
     }
 
@@ -525,10 +556,7 @@ void MvpControlROS::initialize() {
     f_read_control_modes();
 
     // Generate thrusters with the given configuration
-     f_generate_thrusters();
-
-    // Generate control allocation matrix with defined method
-    f_generate_control_allocation_matrix();
+    f_generate_thrusters();
 
     // Initialize thruster objects.
     std::for_each(m_thrusters.begin(),m_thrusters.end(),
@@ -536,6 +564,21 @@ void MvpControlROS::initialize() {
             t->initialize();
         }
     );
+    
+    ROS_INFO("#### Thruster object created ####");
+
+    // Generate thrusters with the given configuration
+    while(!f_initial_tf_check())
+    {
+        sleep(1);
+    };
+
+    ROS_INFO("#### TF for thruster checking done ####");
+
+    // Generate control allocation matrix with defined method
+    f_generate_control_allocation_matrix();
+
+    ROS_INFO("#### Allocation matrix generated ####");
 
     m_mvp_control->set_desired_state(m_set_point);
 
@@ -553,6 +596,8 @@ void MvpControlROS::initialize() {
             std::placeholders::_2
         )
     );
+
+    ROS_INFO("******* MVP Controller Ready *******" );
 
 }
 
@@ -574,6 +619,46 @@ void MvpControlROS::f_generate_control_allocation_from_user() {
 
         t->set_contribution_vector(contribution_vector);
     }
+}
+
+bool MvpControlROS::f_initial_tf_check(){
+    
+    ROS_INFO("   MVP_control TF checking started");
+
+    //check world link to cg link is up
+    try {
+        // Transform center of gravity to world
+        auto cg_world = m_transform_buffer.lookupTransform(
+            m_world_link_id,
+            m_cg_link_id,
+            ros::Time(0)
+            );
+    }catch(tf2::TransformException& e) {
+        ROS_WARN_STREAM_THROTTLE(10, std::string("Can't find TF between world and cg: ") + e.what());
+        return false;
+        }
+    ROS_INFO("   world_link to cg_link found");
+
+    //Check if thruster to cg_link is up
+    //for each thruster look up transformation
+    for(const auto& t : m_thrusters) {
+        try {
+            auto tf_cg_thruster = m_transform_buffer.lookupTransform(
+                m_cg_link_id,
+                t->get_link_id(),
+                ros::Time(0)
+                );
+
+        } catch (const tf2::TransformException & e) {
+            ROS_WARN_STREAM_THROTTLE(10, std::string("Can't find TF for thrusters: ") + e.what());
+            ROS_INFO("Could not transform %s to %s: %s",
+                         t->get_link_id().c_str(), m_cg_link_id.c_str(), e.what() ); 
+          return false;
+        }
+    }
+
+    ROS_INFO("   thrust to cg_link found");
+    return true;
 }
 
 void MvpControlROS::f_generate_control_allocation_from_tf() {
@@ -1041,6 +1126,7 @@ bool MvpControlROS::f_compute_process_values() {
 void MvpControlROS::f_control_loop() {
 
     double pt = ros::Time::now().toSec();
+    setpoint_timer = ros::Time::now().toSec();
 
     auto r = ros::Rate(m_controller_frequency);
 
@@ -1055,20 +1141,23 @@ void MvpControlROS::f_control_loop() {
         }
 
         /**
-         * Check if controller is enabled or not.
-         */
-        if(!m_enabled) {
-             for(int i = 0 ; i < m_thrusters.size() ; i++) {
-                m_thrusters.at(i)->command(0);
-            }
-            continue;
-        }
-
-        /**
          * Compute the state of the system. Continue on failure. This may
          * happen when transform tree is not ready.
          */
         if(not f_compute_process_values()) {
+            continue;
+        }
+
+        /**
+         * Check if controller is enabled or not.
+         */
+        double time_since_last_setpoint = ros::Time::now().toSec() - setpoint_timer;
+        printf("timeout = %lf, %lf\r\n", time_since_last_setpoint, m_no_setpoint_timeout);
+        // if(!m_enabled) {
+        if(!m_enabled || time_since_last_setpoint > m_no_setpoint_timeout) {
+             for(int i = 0 ; i < m_thrusters.size() ; i++) {
+                m_thrusters.at(i)->command(0);
+            }
             continue;
         }
 
@@ -1218,6 +1307,7 @@ void MvpControlROS::f_cb_msg_joint_state(
 
 void MvpControlROS::f_cb_srv_set_point(
         const mvp_msgs::ControlProcess::ConstPtr &msg) {
+    setpoint_timer = ros::Time::now().toSec();
     f_amend_set_point(*msg);
 }
 
@@ -1773,9 +1863,9 @@ bool MvpControlROS::f_amend_control_mode(std::string mode) {
 
         m_mvp_control->update_freedoms(found->dofs);
 
-        ROS_INFO_STREAM("Controller mode changed to " << mode);
+        // ROS_INFO_STREAM("Controller mode changed to " << mode);
 
-        // mode is not empty. mode is in the modes list. operation is valid.
+        // Mode is not empty. mode is in the modes list. operation is valid.
         return true;
     } else {
 
@@ -1798,6 +1888,7 @@ bool MvpControlROS::f_amend_set_point(
     }
 
     Eigen::Vector3d p_world, rpy_world;
+    Eigen::Vector3d p_world2, rpy_world2;
     try {
         // Transform the position of setpoint frame_id to world_link
         auto tf_world_setpoint = m_transform_buffer.lookupTransform(
@@ -1805,66 +1896,112 @@ bool MvpControlROS::f_amend_set_point(
             set_point.header.frame_id,
             ros::Time(0)
         );
+
+        //New approach
         if (abs(tf_world_setpoint.header.stamp.toSec() - ros::Time::now().toSec()) < 10 || tf_world_setpoint.header.stamp.toSec()==0.0) 
-        { 
-            
-            auto tf_eigen = tf2::transformToEigen(tf_world_setpoint);
+        {
+            geometry_msgs::PoseStamped setpoint_origin, setpoint_converted;
+            setpoint_origin.header = set_point.header;
+            setpoint_origin.pose.position.x = set_point.position.x;
+            setpoint_origin.pose.position.y = set_point.position.y;
+            setpoint_origin.pose.position.z = set_point.position.z;
+            tf2::Quaternion q;
+            q.setRPY(set_point.orientation.x, set_point.orientation.y, set_point.orientation.z);
+            setpoint_origin.pose.orientation.x = q.x();
+            setpoint_origin.pose.orientation.y = q.y();
+            setpoint_origin.pose.orientation.z = q.z();
+            setpoint_origin.pose.orientation.w = q.w();
 
-            p_world = tf_eigen.rotation() * 
-                                    Eigen::Vector3d(set_point.position.x, set_point.position.y, set_point.position.z)
-                                    + tf_eigen.translation();
-            ///convert euler angle into a different frame
-            ///find the rotation matrix from the set point frame to the desired pose.
-            Eigen::Matrix3d R;
-            R = Eigen::AngleAxisd(set_point.orientation.z, Eigen::Vector3d::UnitZ()) *
-                                Eigen::AngleAxisd(set_point.orientation.y, Eigen::Vector3d::UnitY()) *
-                                Eigen::AngleAxisd(set_point.orientation.x, Eigen::Vector3d::UnitX());
-       
-            //find rotation matrix from the world link to the setpoint frame.
-            auto tf_1 = m_transform_buffer.lookupTransform(
-                set_point.header.frame_id,
-                m_world_link_id,
-                ros::Time(0)
+            //convert
+            setpoint_converted.header = set_point.header;
+            setpoint_converted.header.frame_id = m_world_link_id;
+
+            tf2::doTransform(setpoint_origin, setpoint_converted,tf_world_setpoint);
+            tf2::Quaternion quat;
+            quat.setW(setpoint_converted.pose.orientation.w);
+            quat.setX(setpoint_converted.pose.orientation.x);
+            quat.setY(setpoint_converted.pose.orientation.y);
+            quat.setZ(setpoint_converted.pose.orientation.z);
+
+           
+            p_world.x() = setpoint_converted.pose.position.x;
+            p_world.y() = setpoint_converted.pose.position.y;
+            p_world.z() = setpoint_converted.pose.position.z;
+
+            tf2::Matrix3x3(quat).getRPY(
+                rpy_world.x(),
+                rpy_world.y(),
+                rpy_world.z()
             );
-
-            if (abs(tf_1.header.stamp.toSec() - ros::Time::now().toSec()) < 10 || tf_1.header.stamp.toSec()==0.0) 
-            { 
-            
-                auto tf_1_eigen = tf2::transformToEigen(tf_1);
-                //find the total rotation matrix from the world link to the desired pose.
-                Eigen::Matrix3d R_set_point =  tf_1_eigen.rotation() *R;
-                // Eigen::Vector3d euler_angles = R_set_point.eulerAngles(2,1,0); // ZYX order
-                // rpy_world.z() = euler_angles[0];
-                // rpy_world.y() = euler_angles[1];
-                // rpy_world.x() = euler_angles[2];
-
-                // printf("from eigen: %lf, %lf, %lf\r\n",rpy_world.x(), rpy_world.y(), rpy_world.z());
-
-                //pitch angle
-                rpy_world.y() = asin(-R_set_point(2, 0));
-
-                // Calculate yaw (rotation about Z-axis)
-                rpy_world.z() = atan2(R_set_point(1, 0), R_set_point(0, 0));
-
-                // Calculate roll (rotation about X-axis)
-                rpy_world.x() = atan2(R_set_point(2, 1), R_set_point(2, 2));
-                // printf("from code: %lf, %lf, %lf\r\n",rpy_world.x(), rpy_world.y(), rpy_world.z());
-
-
-            }
-            else
-            {
-                ROS_WARN( "%s to %s TF too old!", set_point.header.frame_id.c_str(), m_world_link_id.c_str() );
-                return false;
-            }
+            // printf("setpoint frame=%s\r\n", set_point.header.frame_id.c_str());
+            // std::cout<<"xyz =\n"<<p_world<<std::endl;
+            // std::cout<<"rpy =\n"<<rpy_world<<std::endl;
         }
         else
         {
             ROS_WARN( "%s to %s TF too old!", m_world_link_id.c_str(), set_point.header.frame_id.c_str() );
             return false;
         }
-        // rpy_world = tf_eigen.rotation() * 
-                                    // Eigen::Vector3d(set_point.orientation.x, set_point.orientation.y, set_point.orientation.z);
+
+        // if (abs(tf_world_setpoint.header.stamp.toSec() - ros::Time::now().toSec()) < 10 || tf_world_setpoint.header.stamp.toSec()==0.0) 
+        // { 
+            
+        //     auto tf_eigen = tf2::transformToEigen(tf_world_setpoint);
+
+        //     p_world2 = tf_eigen.rotation() * 
+        //                             Eigen::Vector3d(set_point.position.x, set_point.position.y, set_point.position.z)
+        //                             + tf_eigen.translation();
+        //     ///convert euler angle into a different frame
+        //     ///find the rotation matrix from the set point frame to the desired pose.
+        //     Eigen::Matrix3d R;
+        //     R = Eigen::AngleAxisd(set_point.orientation.z, Eigen::Vector3d::UnitZ()) *
+        //                         Eigen::AngleAxisd(set_point.orientation.y, Eigen::Vector3d::UnitY()) *
+        //                         Eigen::AngleAxisd(set_point.orientation.x, Eigen::Vector3d::UnitX());
+       
+        //     //find rotation matrix from the world link to the setpoint frame.
+        //     auto tf_1 = m_transform_buffer.lookupTransform(
+        //         set_point.header.frame_id,
+        //         m_world_link_id,
+        //         ros::Time(0)
+        //     );
+
+        //     if (abs(tf_1.header.stamp.toSec() - ros::Time::now().toSec()) < 10 || tf_1.header.stamp.toSec()==0.0) 
+        //     { 
+            
+        //         auto tf_1_eigen = tf2::transformToEigen(tf_1);
+        //         //find the total rotation matrix from the world link to the desired pose.
+        //         Eigen::Matrix3d R_set_point =  tf_1_eigen.rotation() *R;
+        //         // Eigen::Vector3d euler_angles = R_set_point.eulerAngles(2,1,0); // ZYX order
+        //         // rpy_world.z() = euler_angles[0];
+        //         // rpy_world.y() = euler_angles[1];
+        //         // rpy_world.x() = euler_angles[2];
+
+        //         // printf("from eigen: %lf, %lf, %lf\r\n",rpy_world.x(), rpy_world.y(), rpy_world.z());
+
+        //         //pitch angle
+        //         rpy_world2.y() = asin(-R_set_point(2, 0));
+
+        //         // Calculate yaw (rotation about Z-axis)
+        //         rpy_world2.z() = atan2(R_set_point(1, 0), R_set_point(0, 0));
+
+        //         // Calculate roll (rotation about X-axis)
+        //         rpy_world2.x() = atan2(R_set_point(2, 1), R_set_point(2, 2));
+
+        //         // printf("from code: %lf, %lf, %lf\r\n",rpy_world.x(), rpy_world.y(), rpy_world.z());
+        //         std::cout<<"original xyz =\n"<<p_world2<<std::endl;
+        //         std::cout<<"original rpy =\n"<<rpy_world2<<std::endl;
+        //     }
+        //     else
+        //     {
+        //         ROS_WARN( "%s to %s TF too old!", set_point.header.frame_id.c_str(), m_world_link_id.c_str() );
+        //         return false;
+        //     }
+        // }
+        // else
+        // {
+        //     ROS_WARN( "%s to %s TF too old!", m_world_link_id.c_str(), set_point.header.frame_id.c_str() );
+        //     return false;
+        // }
 
         //assume the set point uvw and pqr are in the m_cg_link_id
 
