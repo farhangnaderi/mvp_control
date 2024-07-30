@@ -18,7 +18,11 @@
     Email: emircem@uri.edu;emircem.gezer@gmail.com
     Year: 2022
 
-    Copyright (C) 2022 Smart Ocean Systems Laboratory
+    Author: Farhang Naderi
+    Email: farhang.naderi@uri.edu;farhang.nba@gmail.com
+    Year: 2024
+
+    Copyright (C) 2024 Smart Ocean Systems Laboratory
 */
 
 
@@ -71,9 +75,47 @@ namespace ctrl {
         //! @brief Controlled freedoms
         std::vector<int> m_controlled_freedoms;
 
+        //! @brief Servo speeds for OSQP constraints
+        Eigen::VectorXd m_servo_speed;
+
+        //! @brief Upper limits for OSQP forces boundary conditions
         Eigen::VectorXd m_upper_limit;
 
+        //! @brief Lower limits for OSQP forces boundary conditions
         Eigen::VectorXd m_lower_limit;
+
+        //! @brief Upper angle limits vector
+        Eigen::VectorXd m_upper_angle;
+
+        //! @brief Lower angle limits vector
+        Eigen::VectorXd m_lower_angle;
+
+        //! @brief Vector representing thruster configuration
+        Eigen::VectorXd m_thruster_vector;
+
+        //! @brief TF prefix for thruster transformations
+        std::string m_tf_prefix_thruster;
+
+        //! @brief Controlled grequency
+        double m_controller_frequency; 
+
+        //! @brief Index of the current thruster
+        int m_thruster_index; 
+
+        //! @brief the angle between the thruster and the x-axis
+        double beta;
+
+        //! @brief Store the current angles for each servo
+        std::vector<double> m_current_angles; //
+
+        //! @brief Adjusted upper limit for thruster constraints
+        std::vector<int> m_adjusted_upper_limit;
+
+        //! @brief Adjusted lower limit for thruster constraints
+        std::vector<int> m_adjusted_lower_limit;
+
+        //! @brief Constants for solver
+        static constexpr double kInfinity = std::numeric_limits<double>::infinity();
 
         /** @brief Calculates PID using #MimoPID
          *
@@ -115,12 +157,14 @@ namespace ctrl {
         //! @brief Mutex lock for protect desired state during changes
         std::recursive_mutex m_desired_state_lock;
 
+        //! @brief Mutex lock to protect thruster states during changes
+        std::mutex m_thruster_vector_lock; 
+
     public:
         /**ns="alpha_control" @brief Mvp Control default constructor
          *
          */
         MvpControl();
-
 
         /** @brief Trivial Setter for control allocation matrix
          *
@@ -129,13 +173,61 @@ namespace ctrl {
         void set_control_allocation_matrix(
             const decltype(m_control_allocation_matrix) &matrix);
 
-
         /** @brief Trivial getter for thruster id
          *
          * @return #MvpControl::m_control_allocation_matrix
          */
         auto get_control_allocation_matrix() ->
         decltype(m_control_allocation_matrix);
+
+        /** @brief Trivial Setter for articulation state vector
+         *
+         * @param vector
+         */
+        void set_thruster_articulation_vector(
+            const decltype(m_thruster_vector) &vector);
+
+        /**
+         * @brief Trivial Setter for controller frequency
+         *
+         * @param frequency The new controller frequency value to set
+         */
+        void set_controller_frequency(
+            const decltype(m_controller_frequency) &frequency);
+
+        /**
+         * @brief Getter for controller frequency
+         *
+         * @return The current controller frequency value
+         */
+        decltype(m_controller_frequency) get_controller_frequency() const {
+            return m_controller_frequency;
+        }
+
+        /**
+         * @brief Trivial Setter for TF prefix
+         *
+         * @param prefix The new TF prefix value to set
+         */
+        void set_tf_prefix(const std::string &prefix) {
+            m_tf_prefix_thruster = prefix;
+        }
+
+        /**
+         * @brief Getter for TF prefix
+         *
+         * @return The current TF prefix value
+         */
+        std::string get_tf_prefix() const {
+            return m_tf_prefix_thruster;
+        }
+
+        /** @brief Trivial getter for thruster articulation vector
+         *
+         * @return The thruster articulation vector
+         */
+        auto get_thruster_articulation_vector() ->
+        decltype(m_thruster_vector);
 
         //! @brief Standard shared pointer type
         typedef std::shared_ptr<MvpControl> Ptr;
@@ -219,9 +311,56 @@ namespace ctrl {
         void
         update_desired_state(const decltype(m_desired_state) &desired_state);
 
+        /** @brief Set the current angle.
+         *
+         * Updates the current angle of the specified thruster.
+         * @param m_thruster_index Pointer to the index of the thruster.
+         * @param angle The new current angle to set.
+         */
+        void set_current_angle(const int* m_thruster_index, double angle);
+
+        /** @brief Get the current angle.
+         *
+         * Retrieves the current angle of the specified thruster.
+         * @param m_thruster_index Pointer to the index of the thruster.
+         * @return The current angle.
+         */
+        double get_current_angle(const int* m_thruster_index) const;
+
+        /** @brief Set the lower limit for OSQP boundary conditions
+        *
+        * Updates the lower limit of the system for OSQP boundary conditions.
+        * @param lower_limit The new lower limit to set.
+        */
         void set_lower_limit(const decltype(m_lower_limit) &lower_limit);
 
+        /** @brief Set the upper limit for OSQP boundary conditions
+        *
+        * Updates the upper limit of the system for OSQP boundary conditions.
+        * @param upper_limit The new upper limit to set.
+        */
         void set_upper_limit(const decltype(m_upper_limit) &upper_limit);
+
+        /** @brief Set the lower angle limit
+         *
+         * Updates the lower angle limit of the system.
+         * @param lower_angle The new lower angle limit to set.
+         */
+        void set_lower_angle(const decltype(m_lower_angle) &lower_angle);
+
+        /** @brief Set the upper angle limit
+         *
+         * Updates the upper angle limit of the system.
+         * @param upper_angle The new upper angle limit to set.
+         */
+        void set_upper_angle(const decltype(m_upper_angle) &upper_angle);
+
+        /** @brief Set the servo speed
+         *
+         * Updates the servo speed of the system.
+         * @param servo_speed The new servo speed to set.
+         */
+        void set_servo_speed(const decltype(m_servo_speed) &servo_speed);
 
     };
 

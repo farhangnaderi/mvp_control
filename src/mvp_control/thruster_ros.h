@@ -18,185 +18,269 @@
     Email: emircem@uri.edu;emircem.gezer@gmail.com
     Year: 2022
 
-    Copyright (C) 2022 Smart Ocean Systems Laboratory
+    Author: Farhang Naderi
+    Email: farhang.naderi@uri.edu;farhang.nba@gmail.com
+    Year: 2024
+
+    Copyright (C) 2024 Smart Ocean Systems Laboratory
 */
 
-#pragma once
+#include "thruster_ros.h"
 
-#include "ros/ros.h"
-#include "std_msgs/Float64.h"
-#include "Eigen/Dense"
-#include "polynomial_solver.h"
+#include "utility"
+#include "exception.hpp"
+#include "mvp_control/dictionary.h"
 
+using namespace ctrl;
 
-namespace ctrl {
+ThrusterROS::ThrusterROS() 
+        : m_nh() ,
+        m_pnh("~")
+{
+    m_poly_solver.reset(new PolynomialSolver());
 
-    class MvpControlROS;
+}
 
-    /** @brief Thruster class for managing data
-     *
-     */
-    class ThrusterROS {
-    private:
+ThrusterROS::ThrusterROS(std::string id, std::string topic_id, Eigen::VectorXd contribution_vector) :
+        m_id(std::move(id)),
+        m_thrust_command_topic_id(std::move(topic_id)),
+        m_contribution_vector(std::move(contribution_vector))
+{
 
-        friend MvpControlROS;
+    m_thrust_publisher = m_nh.advertise<std_msgs::Float64>(
+        m_thrust_command_topic_id, 10);
 
+    m_poly_solver.reset(new PolynomialSolver());
+}
 
-        //! @brief Public node handler
-        ros::NodeHandle m_nh;
+auto ThrusterROS::get_thrust_command_topic_id() -> decltype(m_thrust_command_topic_id) {
+    return m_thrust_command_topic_id;
+}
 
-        //! @brief Thruster ID
-        std::string m_id;
+void ThrusterROS::set_thrust_command_topic_id(const decltype(m_thrust_command_topic_id) &topic_id) {
+    m_thrust_command_topic_id = topic_id;
+}
 
-        //! @brief Thrust command topic ID
-        std::string m_thrust_command_topic_id;
+auto ThrusterROS::get_thrust_force_topic_id() -> decltype(this->m_thrust_force_topic_id) {
+    return m_thrust_force_topic_id;
+}
 
-        //! @brief Thruster force topic id
-        std::string m_thrust_force_topic_id;
+void ThrusterROS::set_thrust_force_topic_id(const decltype(m_thrust_force_topic_id) &topic_id) {
+    m_thrust_force_topic_id = topic_id;
+}
 
-        //! @brief thruster link id
-        std::string m_link_id;
+auto ThrusterROS::get_servo_command_topic_id() -> decltype(m_servo_command_topic_id) {
+    return m_servo_command_topic_id;
+}
 
-        /** @brief Thruster contribution vector
-         *
-         * This vector defines a column in control allocation matrix.
-         * Each element in the vector describes contribution on
-         * vehicle motion of the thruster in each degree of freedom
-         */
-        Eigen::VectorXd m_contribution_vector;
+void ThrusterROS::set_servo_command_topic_id(const decltype(m_servo_command_topic_id) &topic_id) {
+    m_servo_command_topic_id = topic_id;
+}
+auto ThrusterROS::get_joint_state_topic_id() -> decltype(m_joint_state_topic_id) {
+    return m_joint_state_topic_id;
+}
 
-        //! @brief Thrust publisher
-        ros::Publisher m_thrust_publisher;
+void ThrusterROS::set_joint_state_topic_id(const decltype(m_joint_state_topic_id) &topic_id) {
+    m_joint_state_topic_id = topic_id;
+}
 
-        //! @brief Thrust force publisher
-        ros::Publisher m_force_publisher;
+auto ThrusterROS::get_joint_state_desired_topic_id() -> decltype(m_joint_state_desired_topic_id) {
+    return m_joint_state_desired_topic_id;
+}
 
-        //! @brief Polynomial solver
-        PolynomialSolver::Ptr m_poly_solver;
+void ThrusterROS::set_joint_state_desired_topic_id(const decltype(m_joint_state_desired_topic_id) &topic_id) {
+    m_joint_state_desired_topic_id = topic_id;
+}
 
-        double m_force_max;
+auto ThrusterROS::get_id() -> decltype(m_id) {
+    return m_id;
+}
 
-        double m_force_min;
+void ThrusterROS::set_id(const decltype(m_id)& thruster_id) {
+    m_id = thruster_id;
+}
 
-    public:
+auto ThrusterROS::get_contribution_vector() -> decltype(m_contribution_vector) {
+    return m_contribution_vector;
+}
 
-        //! @brief Default constructor
-        ThrusterROS();
+void ThrusterROS::set_contribution_vector(const decltype(m_contribution_vector)& contribution_vector) {
+    m_contribution_vector = contribution_vector;
+}
 
-        /** @brief Thruster ROS class constructor.
-         *
-         * This constructor should be used in normal operation.
-         * Initializes Thruster ID, Topic ID and contribution vector
-         *
-         * @param id
-         * @param topic_id
-         * @param contribution_vector
-         */
-        ThrusterROS(std::string id, std::string topic_id,
-                    Eigen::VectorXd contribution_vector);
+void ThrusterROS::set_servo_joints(const std::vector<std::string>& joints) {
+    servo_joints = joints;
+}
 
-        /** @brief Initializes publishers and subscribers
-         *
-         */
-        void initialize();
+std::vector<std::string> ThrusterROS::get_servo_joints() const {
+    return servo_joints;
+}
 
-        /** @brief Trivial getter for topic id
-         *
-         * @return #ThrusterROS::m_thrust_command_topic_id
-         */
-        auto
-        get_thrust_command_topic_id() -> decltype(m_thrust_command_topic_id);
+int ThrusterROS::get_is_articulated() const {
+    return is_articulated;
+}
+void ThrusterROS::set_is_articulated(int value) {
+    is_articulated = value;
+}
 
-        /** @brief Default Setter for topic id
-         *
-         * @param topic_id
-         */
-        void set_thrust_command_topic_id(
-            const decltype(m_thrust_command_topic_id) &topic_id);
+const std::vector<double>& ThrusterROS::getServoSpeeds() const {
+    return servo_speeds;
+}
 
-        /** @brief Trivial getter for force topic id
-         *
-         * @return #ThrusterROS::m_thrust_force_topic_id
-         */
-        auto get_thrust_force_topic_id() -> decltype(m_thrust_force_topic_id);
+void ThrusterROS::setServoSpeeds(const std::vector<double>& speeds) {
+    servo_speeds = speeds;
+}
 
-        /** @brief Default Setter force for topic id
-         *
-         * @param topic_id
-         */
-        void set_thrust_force_topic_id(
-            const decltype(m_thrust_force_topic_id) &topic_id);
+void ThrusterROS::initialize() {
 
-        /** @brief Trivial getter for link id
-         *
-         * @return #ThrusterROS::m_link_id
-         */
-        auto get_link_id() -> decltype(m_link_id);
+    if(!m_thrust_command_topic_id.empty()) {
+        m_thrust_publisher = m_nh.advertise<std_msgs::Float64>(
+            m_thrust_command_topic_id, 100);
+    } else {
+        throw control_ros_exception("empty command topic name");
+    }
 
-        /** @brief Trivial Setter for link id
-         *
-         * @param link_id
-         */
-        void set_link_id(const decltype(m_link_id) &link_id);
+    if(!m_thrust_command_topic_id.empty()) {
+         m_force_publisher = m_nh.advertise<std_msgs::Float64>(
+             m_thrust_force_topic_id, 100);
+    } else {
+        throw control_ros_exception("empty force topic name");
+    }
 
+    if (!m_joint_state_desired_topic_id.empty()) {
+        m_joint_state_publisher = m_nh.advertise<sensor_msgs::JointState>(
+            m_joint_state_desired_topic_id, 100);
+    } else {
+        throw control_ros_exception("empty joint state topic name");
+    }    
 
-        /** @brief Trivial getter for thruster id
-         *
-         * @return #ThrusterROS::m_id
-         */
-        auto get_id() -> decltype(m_id);
+    // Initialization for the servo command topic
+    if (!m_servo_command_topic_id.empty()) {
+        m_servo_command_publisher = m_nh.advertise<std_msgs::Float64>(m_servo_command_topic_id, 100);
+    } else {
+        ROS_WARN_STREAM("Servo command topic name is empty, assuming the thruster is not articulated.");
+    }
 
-        /** @brief Trivial Setter for topic id
-         *
-         * @param thruster_id
-         */
-        void set_id(const decltype(m_id) &thruster_id);
+}
 
-        /** @brief Trivial getter for contribution vector
-         *
-         * @return #ThrusterROS::m_contribution_vector
-         */
-        auto get_contribution_vector() -> decltype(m_contribution_vector);
+auto ThrusterROS::get_link_id() -> decltype(m_link_id) {
+    return m_link_id;
+}
 
-        /** @brief Trivial Setter for contribution vector
-         *
-         * @param contribution Contribution vector for the thruster
-         */
-        void set_contribution_vector(
-            const decltype(m_contribution_vector) &contribution_vector);
+void ThrusterROS::set_link_id(const decltype(m_link_id)& link_id) {
+    m_link_id = link_id;
+}
 
-        /** @brief Trivial getter for polynomial solver
-         *
-         * @return #ThrusterROS::m_poly_solver
-         */
-        auto get_poly_solver() -> decltype(m_poly_solver);
+auto ThrusterROS::get_servo_link_id() -> decltype(m_servo_link_id) {
+    return m_servo_link_id;
+}
 
-        /** @brief Trivial setter for polynomial solver
-         *
-         * @param solver
-         */
-        void set_poly_solver(decltype(m_poly_solver) solver);
+void ThrusterROS::set_servo_link_id(const decltype(m_servo_link_id)& servo_link_id) {
+    m_servo_link_id = servo_link_id;
+}
 
-        //! @brief Generic typedef for shared pointer
-        typedef std::shared_ptr<ThrusterROS> Ptr;
+auto ThrusterROS::get_frame_id() -> decltype(m_frame_id) {
+    return m_frame_id;
+}
 
-        /** @brief Publish thruster command
-         *
-         * Thuster command should be between -1 and 1
-         *
-         * @param cmd
-         */
-        void command(double cmd);
+void ThrusterROS::set_frame_id(const decltype(m_frame_id)& frame_id) {
+    m_frame_id = frame_id;
+}
 
-        /** @brief Request force from thruster
-         *
-         * This method gets input \p N as Newton and applies it to a polynomial solver
-         * that is defined with #PolynomialSolver::m_coeff.
-         *
-         * @param N force as newton
-         * @return true if polynomial is solved, false if polynomial isn't solved.
-         */
-        bool request_force(double N);
-    };
+void ThrusterROS::command(double cmd) {
+    std_msgs::Float64 msg;
+    msg.data = cmd;
+    m_thrust_publisher.publish(msg);
+}
 
+void ThrusterROS::servo_joint_command(double cmd) {
+    std_msgs::Float64 msg;
+    msg.data = cmd;
+    m_servo_command_publisher.publish(msg);
+}
+
+auto ThrusterROS::get_poly_solver() -> decltype(m_poly_solver) {
+    return m_poly_solver;
+}
+
+void ThrusterROS::set_poly_solver(decltype(m_poly_solver) solver) {
+    m_poly_solver = std::move(solver);
+}
+
+void ThrusterROS::set_servo_coeff(const std::vector<double>& coeff) {
+    servo_coeff_ = coeff;
+}
+
+const std::vector<double>& ThrusterROS::get_servo_coeff() const {
+    return servo_coeff_;
+}
+
+bool ThrusterROS::request_force(double N) {
+    std::vector<std::complex<double>> roots;
+
+    std_msgs::Float64  msg;
+    msg.data = N;
+    m_force_publisher.publish(msg);
+
+    if(N > m_force_max) {
+        N = m_force_max;
+    } else if (N < m_force_min) {
+        N = m_force_min;
+    }
+
+    if(!m_poly_solver->solve_for_y(roots, N)) {
+        ROS_WARN_STREAM("No feasible command found for force: " << N);
+        return false;
+    }
+
+    for(const auto& r : roots) {
+        if(r.imag() != 0){
+            continue;
+        }
+
+        if(r.real() >= 1 || r.real() < -1) {
+            continue;
+        }
+
+        command(r.real());
+
+        break;
+    }
+
+    return true;
+}
+
+bool ThrusterROS::request_joint_angles(const std::string& joint_name, double requested_angle) {
+
+    if (!m_joint_state_publisher) {
+        ROS_ERROR("Joint state publisher is not initialized!");
+        return false;
+    }
+
+    sensor_msgs::JointState joint_state_msg;
+    // joint_state_msg.header.stamp = ros::Time::now(); 
+    joint_state_msg.name.push_back(joint_name);     
+    joint_state_msg.position.push_back(requested_angle);
+
+    m_joint_state_publisher.publish(joint_state_msg); 
+
+    servo_joint_command(normalize_angle(requested_angle));
+
+    return true;
+}
+
+double ThrusterROS::normalize_angle(double angle) const {
+    // Check that the polynomial has the expected four coefficients (slope, offset1, offset2, center)
+    if (servo_coeff_.size() != 2) {
+        throw std::runtime_error("Servo polynomial must have exactly 4 coefficients.");
+    }
+
+    double slope = servo_coeff_[0];
+    double offset = servo_coeff_[1];
+
+    // Apply the linear transformation with the chosen offset
+    double pwm = slope * angle + offset;
+
+    // Clamp the pwm to the range -1 to 1
+    return std::max(std::min(pwm, 1.0), -1.0);
 }
