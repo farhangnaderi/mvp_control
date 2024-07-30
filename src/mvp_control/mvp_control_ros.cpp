@@ -18,15 +18,17 @@
     Email: emircem@uri.edu;emircem.gezer@gmail.com
     Year: 2022
 
-    Copyright (C) 2022 Smart Ocean Systems Laboratory
+    Author: Farhang Naderi
+    Email: farhang.naderi@uri.edu;farhang.nba@gmail.com
+    Year: 2024
+
+    Copyright (C) 2024 Smart Ocean Systems Laboratory
 */
 
 #include "mvp_control_ros.h"
 #include "exception.hpp"
 #include "tf2_eigen/tf2_eigen.h"
-
 #include "mvp_control/dictionary.h"
-
 #include "boost/regex.hpp"
 
 using namespace ctrl;
@@ -75,6 +77,17 @@ MvpControlROS::MvpControlROS()
             CONF_ODOMETRY_SOURCE_DEFAULT
     );
 
+    // Read configuration: joints topic id
+    std::string joint_states_topic;
+    m_pnh.param<std::string>(
+            CONF_SERVO_JOINT_TOPIC,
+            joint_states_topic, ""
+    );
+
+    if (joint_states_topic.empty()) {
+        ROS_WARN("The servo_joint_topic not set! Non-Articulated Vehicle");
+    }
+
     m_pnh.param<double>(
         CONF_CONTROLLER_FREQUENCY,
         m_controller_frequency,
@@ -94,6 +107,13 @@ MvpControlROS::MvpControlROS()
             odometry_topic,
             100,
             &MvpControlROS::f_cb_msg_odometry,
+            this
+    );
+
+    m_joint_state_subscriber = m_nh.subscribe<sensor_msgs::JointState>(
+            joint_states_topic,
+            100,
+            &MvpControlROS::f_cb_msg_joint_state,
             this
     );
 
@@ -211,11 +231,43 @@ MvpControlROS::MvpControlROS()
      */
     m_mvp_control.reset(new MvpControl());
 
+    /**
+     * Initialize the URDF model
+     */
+    std::string urdf_param_name;
+    m_pnh.param("urdf_param", urdf_param_name, std::string("robot_description"));
+    if (!m_model.initParam(urdf_param_name)) {
+        ROS_ERROR("Failed to parse URDF file");
+    } else {
+        ROS_INFO("Successfully parsed URDF file");
+
+        // Log all joint names for debugging
+        for (const auto& joint : m_model.joints_) {
+            ROS_INFO("Joint in URDF: %s", joint.first.c_str());
+        }
+    }
+}
+
+bool ctrl::MvpControlROS::f_getJointLimits(const urdf::Model &model, const std::string &joint_name, double &lower, double &upper)
+{
+    auto joint = model.getJoint(joint_name);
+    if (joint) {
+        if (joint->limits) {
+            lower = joint->limits->lower;
+            upper = joint->limits->upper;
+            return true;
+        } else {
+            ROS_WARN("Joint '%s' found but no limits defined", joint_name.c_str());
+        }
+    } else {
+        ROS_WARN("Joint '%s' not found in URDF model", joint_name.c_str());
+    }
+    return false;
 }
 
 void MvpControlROS::f_generate_control_allocation_matrix() {
 
-    // Read generator type
+    // Read generator type (e.g., TF or User-defined)
     std::string generator_type;
     m_pnh.param<std::string>(
             CONF_GENERATOR_TYPE,
@@ -232,7 +284,7 @@ void MvpControlROS::f_generate_control_allocation_matrix() {
         m_generator_type = GeneratorType::UNKNOWN;
     }
 
-    // Generate the control allocation matrix
+    // Generate the control allocation matrix based on the specified generator type
     if(m_generator_type == GeneratorType::USER) {
         f_generate_control_allocation_from_user();
     } else if (m_generator_type == GeneratorType::TF) {
@@ -242,10 +294,28 @@ void MvpControlROS::f_generate_control_allocation_matrix() {
             "control allocation generation method unspecified"
         );
     }
-
-    // Conduct some checks to see if everything is ready to be initialized
+       
+    // Conduct some checks to ensure everything is ready for initialization
     if(m_thrusters.empty()) {
         throw control_ros_exception("no thruster specified");
+    } else {
+        for(size_t i = 0; i < m_thrusters.size(); i++) {
+            std::string id = m_thrusters[i]->get_id();
+            int isArticulated = m_thrusters[i]->get_is_articulated();
+            std::vector<std::string> servoJoints = m_thrusters[i]->get_servo_joints();
+            std::string link = m_thrusters[i]->get_link_id();
+            
+            // Log details of each thruster, including whether it's articulated and its associated joints
+            ROS_INFO_STREAM("Thruster " << i << ": ID=" << id << ", Is Articulated=" << (isArticulated > 0 ? "Yes" : "No") << ", Link=" << link);
+            
+            if(isArticulated > 0) {
+                std::string jointsStr;
+                for(const auto& joint : servoJoints) {
+                    jointsStr += joint + " ";
+                }
+                ROS_INFO_STREAM("  Joint: " << jointsStr);
+            }
+        }
     }
 
     // Control allocation matrix is generated based on each thruster. Each
@@ -260,10 +330,18 @@ void MvpControlROS::f_generate_control_allocation_matrix() {
             );
         }
     }
+    Eigen::VectorXd m_thruster_vector = Eigen::VectorXd::Zero(m_thrusters.size());
 
-    // Initialize the control allocation matrix based on zero matrix.
-    // M by N matrix. M -> number of all controllable DOF, N -> number of
-    // thrusters
+    for (int i = 0; i < m_thrusters.size(); i++) {
+        m_thruster_vector[i] = m_thrusters[i]->get_is_articulated();
+    }
+
+    m_mvp_control->set_thruster_articulation_vector(m_thruster_vector);
+    m_mvp_control->set_controller_frequency(m_controller_frequency);
+    m_mvp_control-> set_tf_prefix(m_tf_prefix);
+    
+    // Initialize the control allocation matrix with zeros.
+    // M -> number of controllable DOFs, N -> number of thrusters
     m_control_allocation_matrix = Eigen::MatrixXd::Zero(
         CONTROLLABLE_DOF_LENGTH, (int) m_thrusters.size()
     );
@@ -271,9 +349,8 @@ void MvpControlROS::f_generate_control_allocation_matrix() {
     // Until this point, all the allocation matrix related issued must be
     // solved or exceptions thrown.
 
-
-    // Acquire DOF per actuator. Register it to control allocation matrix.
-    // Only DOF::X, DOF::Y and DOF::Z are left unregistered. They are computed
+    // Register each DOF per actuator to the control allocation matrix.
+    // Only DOFs X, Y, and Z are left unregistered. They are computed
     // online after each iteration.
     for (int i = 0; i < m_thrusters.size(); i++) {
         for(const auto& j :
@@ -287,27 +364,65 @@ void MvpControlROS::f_generate_control_allocation_matrix() {
         }
     }
 
-    // Finally, set the control allocation matrix for the controller object.
+    // Set the final control allocation matrix for the controller object
     m_mvp_control->set_control_allocation_matrix(m_control_allocation_matrix);
 
 }
 
 void MvpControlROS::f_generate_thrusters() {
-    // Read all the configuration file to get all the listed thrusters
 
+    // Parsing all the listed thrusters and servo joints
 
-    if(!m_pnh.hasParam(CONF_THRUSTER_IDS)) {
+    if (!m_pnh.hasParam(CONF_THRUSTER_IDS)) {
         throw control_ros_exception("thruster_ids empty");
     }
 
     std::vector<std::string> thruster_id_list;
     m_pnh.getParam(CONF_THRUSTER_IDS, thruster_id_list);
 
-    // create thruster objects
-    for(const auto& id : thruster_id_list) {
+    std::map<std::string, std::string> thruster_servo_joints;
+    m_pnh.getParam(CONF_THRUSTER_SERVO_JOINTS, thruster_servo_joints);
+
+    // First Stage: Initialization with Articulated Check
+    for (const auto& id : thruster_id_list) {
+        
+        // Check if the current thruster is articulated
+        auto it = thruster_servo_joints.find(id);
+        int isArticulated = (it != thruster_servo_joints.end()) ? 1 : 0;
+       // Create a ThrusterROS object for the non-articulated or the first articulated joint
         ThrusterROS::Ptr t(new ThrusterROS());
-        t->set_id(std::string(id));
-        m_thrusters.emplace_back(t);
+        t->set_id(id);
+        t->set_is_articulated(isArticulated);
+
+        if (isArticulated == 0) {
+            // Thruster is not articulated
+            ROS_INFO_STREAM("Thruster " << id << " is not articulated.");
+            // Add the non-articulated thruster to the list
+            m_thrusters.emplace_back(t);
+        } else {
+            /* 
+            Thruster is articulated, create two ThrusterROS objects: 
+            */
+            ThrusterROS::Ptr articulated_tx(new ThrusterROS());
+            articulated_tx->set_id(id);
+            articulated_tx->set_is_articulated(1);
+            articulated_tx->set_servo_joints({it->second}); // Set the first servo joint
+            
+            // Log the first servo joint
+            ROS_INFO_STREAM("Thruster " << id << " is articulated with servo joint: " << it->second);
+            
+            m_thrusters.emplace_back(articulated_tx);
+
+            ThrusterROS::Ptr articulated_ty(new ThrusterROS());
+            articulated_ty->set_id(id);
+            articulated_ty->set_is_articulated(2);
+            articulated_ty->set_servo_joints({it->second}); // Set the second servo joint
+            
+            // Log the second servo joint
+            ROS_INFO_STREAM("Thruster " << id << " is articulated with servo joint: " << it->second);
+            
+            m_thrusters.emplace_back(articulated_ty);
+        }
     }
 
     for(const auto& t : m_thrusters) {
@@ -320,46 +435,119 @@ void MvpControlROS::f_generate_thrusters() {
 
         t->set_link_id(m_tf_prefix + link_id);
     }
-    // initialize thrust command publishers
-    for(const auto& t : m_thrusters) {
-
-        // read topic id config for thruster
-        std::string thrust_command_topic_id;
-        m_pnh.param<std::string>(std::string()
-                + CONF_THRUST_COMMAND_TOPICS + "/" + t->m_id,
-                thrust_command_topic_id,
-                "control/thruster/" + t->m_id + "/command");
-        t->set_thrust_command_topic_id(thrust_command_topic_id);
-
-        // read topic id config for thruster
-        std::string thrust_force_topic_id;
-        m_pnh.param<std::string>(std::string()
-                + CONF_THRUSTER_FORCE_TOPICS + "/" + t->m_id,
-                thrust_force_topic_id,
-                "control/thruster/" + t->m_id + "/force"
-        );
-        t->set_thrust_force_topic_id(thrust_force_topic_id);
-
-        // read polynomials for thruster
-        std::vector<double> poly;
-        m_pnh.param<std::vector<double>>(std::string()
-                + CONF_THRUSTER_POLY + "/" + t->m_id,
-                poly,
-                std::vector<double>()
-        );
-        t->get_poly_solver()->set_coeff(poly);
-
-        m_pnh.param<double>(std::string() +
-            CONF_THRUSTER_LIMITS + "/" + t->get_id() + "/" + CONF_THRUSTER_MAX,
-            t->m_force_max,
-            10.0);
-
-        m_pnh.param<double>(std::string() +
-            CONF_THRUSTER_LIMITS + "/" + t->get_id() + "/" + CONF_THRUSTER_MIN,
-            t->m_force_min,
-            -10.0);
+    
+    for (const auto& t : m_thrusters) {
+        std::string servo_link_id;
+        std::string param_name = std::string() + CONF_CONTROL_TF_SERVO + "/" + t->get_id();
+        
+        if (m_pnh.getParam(param_name, servo_link_id)) {
+            t->set_servo_link_id(m_tf_prefix + servo_link_id);
+        } else {
+            ROS_INFO("Parameter %s not found. No Servo Link!", param_name.c_str());
+            continue;
+        }
     }
 
+    // Second Stage: Detailed Configuration for Each Thruster
+    for (const auto& t : m_thrusters) {
+        std::string thrust_command_topic_id, thrust_force_topic_id;
+        std::string servo_joint_desired_topic_id,servo_command_topic_id;
+        std::vector<double> poly;
+        double force_max, force_min;
+        double angle_max, angle_min, omega;
+
+        // Thrust command topic configuration
+        m_pnh.param<std::string>(
+            std::string(CONF_THRUST_COMMAND_TOPICS) + "/" + t->get_id(), 
+            thrust_command_topic_id, 
+            "control/thruster/" + t->get_id() + "/command");
+        t->set_thrust_command_topic_id(thrust_command_topic_id);
+
+        // Thrust force topic configuration
+        m_pnh.param<std::string>(
+            std::string(CONF_THRUSTER_FORCE_TOPICS) + "/" + t->get_id(), 
+            thrust_force_topic_id, 
+            "control/thruster/" + t->get_id() + "/force");
+        t->set_thrust_force_topic_id(thrust_force_topic_id);
+
+        // Joint state topic configuration
+        m_pnh.param<std::string>(
+            "/" + m_tf_prefix + std::string(CONF_SERVO_JOINT_SETPOINT_TOPIC), 
+            servo_joint_desired_topic_id, 
+            "/" + m_tf_prefix + "control/servos/desired_joint_states");
+        t->set_joint_state_desired_topic_id(servo_joint_desired_topic_id);
+        
+        // Servo command topic configuration
+        m_pnh.param<std::string>(std::string(CONF_SERVO_COMMAND_TOPICS) + "/" + t->get_id(), 
+                                servo_command_topic_id, 
+                                "");
+        t->set_servo_command_topic_id(servo_command_topic_id);
+
+        // Polynomial coefficients configuration for thrusters
+        m_pnh.param<std::vector<double>>(
+            std::string(CONF_THRUSTER_POLY) + "/" + t->get_id(), 
+            poly, std::vector<double>());
+        t->get_poly_solver()->set_coeff(poly);
+
+        // Read servo coefficients from the configuration file
+        std::vector<double> servo_poly;
+        m_pnh.param<std::vector<double>>(
+            std::string(CONF_SERVO_POLY) + "/" + t->get_id(), 
+            servo_poly, std::vector<double>());
+        t->set_servo_coeff(servo_poly);
+
+        // Servo speeds in rad/s
+        if (!m_pnh.getParam(std::string(CONF_THRUSTER_SERVO_SPEEDS) + "/" + t->get_id(), omega)) {
+            ROS_WARN("'%s' not set. Assuming as non-articulated and setting to zero.", 
+                    (std::string(CONF_THRUSTER_SERVO_SPEEDS) + ":" + t->get_id()).c_str());
+        } else {
+            t->m_omega = omega;
+        }
+
+        // Force limits configuration
+        m_pnh.param<double>(
+            std::string(CONF_THRUSTER_LIMITS) + "/" + t->get_id() + "/" + CONF_THRUSTER_MAX, 
+            force_max, 
+            10.0);
+        t->m_force_max = force_max;
+
+        m_pnh.param<double>(
+            std::string(CONF_THRUSTER_LIMITS) + "/" + t->get_id() + "/" + CONF_THRUSTER_MIN, 
+            force_min, 
+            -10.0);
+        t->m_force_min = force_min;
+
+        /*
+        Angle limits configuration
+        For safety the default angle values are passed zero 
+        in case no input available in config file.
+        */
+
+        auto servo_joints = t->get_servo_joints();
+        if (servo_joints.empty()) {
+            ROS_WARN("Thruster '%s' has no servo joints defined.", t->get_id().c_str());
+            continue; // Skip this thruster if no servo joints are defined
+        }
+
+        std::string joint_name = m_tf_prefix + servo_joints.at(0); // Assuming get_servo_joints().at(0) returns the correct joint name
+
+        ROS_INFO("Checking joint '%s'", joint_name.c_str()); // Log the joint name to verify
+
+        if (!f_getJointLimits(m_model, joint_name, angle_min, angle_max)) {
+            ROS_WARN("Failed to get joint limits for joint '%s'. Setting to zero.", 
+            joint_name.c_str());
+
+            angle_min = 0.0;
+            angle_max = 0.0;
+
+        } else {
+            ROS_INFO("Joint '%s': angle_min = %f, angle_max = %f", 
+            joint_name.c_str(), angle_min, angle_max);        
+        }
+
+        t->m_angle_max = angle_max;
+        t->m_angle_min = angle_min;
+    }
 }
 
 void MvpControlROS::initialize() {
@@ -386,7 +574,6 @@ void MvpControlROS::initialize() {
     };
 
     ROS_INFO("#### TF for thruster checking done ####");
-
 
     // Generate control allocation matrix with defined method
     f_generate_control_allocation_matrix();
@@ -434,14 +621,13 @@ void MvpControlROS::f_generate_control_allocation_from_user() {
     }
 }
 
-
 bool MvpControlROS::f_initial_tf_check(){
     
     ROS_INFO("   MVP_control TF checking started");
 
     //check world link to cg link is up
     try {
-            // Transform center of gravity to world
+        // Transform center of gravity to world
         auto cg_world = m_transform_buffer.lookupTransform(
             m_world_link_id,
             m_cg_link_id,
@@ -453,8 +639,8 @@ bool MvpControlROS::f_initial_tf_check(){
         }
     ROS_INFO("   world_link to cg_link found");
 
-    //check thruster to cg_link is up.
-    // For each thruster look up transformation
+    //Check if thruster to cg_link is up
+    //for each thruster look up transformation
     for(const auto& t : m_thrusters) {
         try {
             auto tf_cg_thruster = m_transform_buffer.lookupTransform(
@@ -475,9 +661,31 @@ bool MvpControlROS::f_initial_tf_check(){
     return true;
 }
 
-
 void MvpControlROS::f_generate_control_allocation_from_tf() {
 
+    for(const auto& t : m_thrusters) {
+        std::string link_id;
+        m_pnh.param<std::string>(
+            std::string() + CONF_CONTROL_TF + "/" + t->get_id(),
+            link_id,
+            t->get_id() + "_thruster_link"
+        );
+
+        t->set_link_id(m_tf_prefix + link_id);
+    }
+    
+    for (const auto& t : m_thrusters) {
+        std::string servo_link_id;
+        std::string param_name = std::string() + CONF_CONTROL_TF_SERVO + "/" + t->get_id();
+        
+        if (m_pnh.getParam(param_name, servo_link_id)) {
+            t->set_servo_link_id(m_tf_prefix + servo_link_id);
+        } else {
+            ROS_WARN("Parameter %s not found. No Servo Link!", param_name.c_str());
+            continue;
+        }
+    }
+        
     // For each thruster look up transformation
     for(const auto& t : m_thrusters) {
 
@@ -493,16 +701,12 @@ void MvpControlROS::f_generate_control_allocation_from_tf() {
 
             eigen_tf = tf2::transformToEigen(tf_cg_thruster);
         } catch(tf2::TransformException &e) {
-            ROS_WARN_STREAM_THROTTLE(10, std::string("Can't compute thruster tf between cg-thruster: ") + e.what());
+            ROS_WARN_STREAM_THROTTLE(10, 
+            std::string("Can't compute thruster tf between cg-thruster: ") + e.what());
             return;
         }
 
         Eigen::VectorXd contribution_vector(CONTROLLABLE_DOF_LENGTH);
-
-        // thruster onlu use a axis (e.g., X-axis) for forece
-        double Fx = eigen_tf.rotation()(0, 0);
-        double Fy = eigen_tf.rotation()(1, 0);
-        double Fz = eigen_tf.rotation()(2, 0);
 
         auto trans_xyz = eigen_tf.translation();
 
@@ -536,10 +740,37 @@ void MvpControlROS::f_generate_control_allocation_from_tf() {
             return;
         }
 
+        double Fx, Fy, Fz; 
+
+        Eigen::Vector3d transformedVector;
+
+        switch (t->get_is_articulated()) {
+            case 0: //Non-articulated thruster
+                transformedVector = eigen_tf.rotation() * Eigen::Vector3d::UnitX();
+                Fx = transformedVector.x(); 
+                Fy = transformedVector.y();
+                Fz = transformedVector.z();
+                break;
+            case 1: //Decoupled articulated thruster along X in trhuster frame
+                transformedVector = eigen_tf.rotation() * Eigen::Vector3d::UnitX();
+                Fx = transformedVector.x(); 
+                Fy = transformedVector.y();
+                Fz = transformedVector.z();
+                break;
+            case 2: //Decoupled articulated thruster along Y in trhuster frame
+                transformedVector = eigen_tf.rotation() * Eigen::Vector3d::UnitY();
+                Fx = transformedVector.x(); 
+                Fy = transformedVector.y();
+                Fz = transformedVector.z();
+                break;
+            default:
+                ROS_WARN_STREAM("Invalid articulation index value for thruster " << t->get_id());
+                break;
+        }
+
         auto torque_pqr = trans_xyz.cross(Eigen::Vector3d{Fx, Fy, Fz});
         auto torque_rpy = ang_vel_tranform * torque_pqr;
-
-        //
+        // body frame forces and torques
         contribution_vector(DOF::SURGE) = Fx;
         contribution_vector(DOF::SWAY) = Fy;
         contribution_vector(DOF::HEAVE) = Fz;
@@ -557,7 +788,7 @@ void MvpControlROS::f_generate_control_allocation_from_tf() {
 
 bool MvpControlROS::f_update_control_allocation_matrix() {
 
-    // update control allocation based on actuators as well
+    // update control allocation based on actuators
 
     try {
         // Transform center of gravity to world
@@ -567,7 +798,7 @@ bool MvpControlROS::f_update_control_allocation_matrix() {
             ros::Time(0)
         );
         //only contiue the process if the tf is not too old
-        
+
         if (abs(cg_world.header.stamp.toSec() - ros::Time::now().toSec()) < 10.0 || cg_world.header.stamp.toSec()==0.0) 
         { 
             auto tf_eigen = tf2::transformToEigen(cg_world);
@@ -585,37 +816,90 @@ bool MvpControlROS::f_update_control_allocation_matrix() {
                 orientation(DOF::YAW)
             );
 
-            Eigen::Matrix3d ang_vel_tranform = Eigen::Matrix3d::Identity();
+            Eigen::Matrix3d ang_vel_transform = Eigen::Matrix3d::Identity();
 
             // for each thruster compute contribution in earth frame
             for(int j = 0 ; j < m_control_allocation_matrix.cols() ; j++){
-                Eigen::Vector3d uvw;
-                uvw <<
-                    m_control_allocation_matrix(DOF::SURGE, j),
-                    m_control_allocation_matrix(DOF::SWAY, j),
-                    m_control_allocation_matrix(DOF::HEAVE, j);
+
+                Eigen::Isometry3d eigen_tf;
+                try {
+                    // Assuming m_thrusters[j] gives access to the j-th thruster object
+                    auto tf_cg_thruster = m_transform_buffer.lookupTransform(
+                        m_cg_link_id,
+                        m_thrusters[j]->get_link_id(), 
+                        ros::Time(0)
+                    );
+
+                    eigen_tf = tf2::transformToEigen(tf_cg_thruster);
+                } catch(tf2::TransformException &e) {
+                    ROS_WARN_STREAM_THROTTLE(10, std::string("Can't compute thruster tf: ") + e.what());
+                    continue;
+                }
+
+                double Fx, Fy, Fz; 
+
+                Eigen::Vector3d transformedVector;
+                int isArticulated = m_thrusters[j]->get_is_articulated();
+
+                switch (isArticulated) {
+                    case 0: //Non-articulated thruster
+                        transformedVector = eigen_tf.rotation() * Eigen::Vector3d::UnitX();
+                        Fx = transformedVector.x(); 
+                        Fy = transformedVector.y();
+                        Fz = transformedVector.z();
+                        break;
+                    case 1: //Decoupled articulated thruster along X in trhuster frame
+                        transformedVector = eigen_tf.rotation() * Eigen::Vector3d::UnitX();
+                        Fx = transformedVector.x(); 
+                        Fy = transformedVector.y();
+                        Fz = transformedVector.z();
+                        break;
+                    case 2: //Decoupled articulated thruster along Y in trhuster frame
+                        transformedVector = eigen_tf.rotation() * Eigen::Vector3d::UnitY();
+                        Fx = transformedVector.x(); 
+                        Fy = transformedVector.y();
+                        Fz = transformedVector.z();
+                        break;
+                    default:
+                        ROS_WARN_STREAM("Invalid articulation index value for thruster " << m_thrusters[j]->get_id());
+                        break;
+                }
+
+                /*
+                Forces and pqr have to be updated again in 
+                case of rotation 
+                */
+                m_control_allocation_matrix(DOF::SURGE, j) = Fx;
+                m_control_allocation_matrix(DOF::SWAY, j) = Fy;
+                m_control_allocation_matrix(DOF::HEAVE, j) = Fz;
+
+                Eigen::Vector3d uvw(Fx, Fy, Fz);
 
                 Eigen::Vector3d xyz = tf_eigen.rotation() * uvw;
 
                 m_control_allocation_matrix(DOF::X, j) = xyz(0);
                 m_control_allocation_matrix(DOF::Y, j) = xyz(1);
                 m_control_allocation_matrix(DOF::Z, j) = xyz(2);
-                
+
+                auto trans_xyz = eigen_tf.translation();
+                auto torque_pqr = trans_xyz.cross(Eigen::Vector3d{Fx, Fy, Fz});
+
                 // Convert prq to world_frame angular rate:
                 //  Eq.(2.12), Eq.(2.14) from Thor I. Fossen, Guidance and Control of Ocean Vehicles, Page 10
-                Eigen::Vector3d pqr;
-                pqr <<
-                    m_control_allocation_matrix(DOF::ROLL_RATE, j),
-                    m_control_allocation_matrix(DOF::PITCH_RATE, j),
-                    m_control_allocation_matrix(DOF::YAW_RATE, j);                
+                
+                m_control_allocation_matrix(DOF::ROLL_RATE, j) = torque_pqr(0);
+                m_control_allocation_matrix(DOF::PITCH_RATE, j) = torque_pqr(1),
+                m_control_allocation_matrix(DOF::YAW_RATE, j) = torque_pqr(2);
 
-                ang_vel_tranform = f_angular_velocity_transform(orientation);
+                Eigen::Vector3d pqr(torque_pqr(0),torque_pqr(1),torque_pqr(2));               
 
-                auto rpy = ang_vel_tranform * pqr;
+                ang_vel_transform = f_angular_velocity_transform(orientation);
+
+                auto rpy = ang_vel_transform * pqr;
                 m_control_allocation_matrix(DOF::ROLL, j) = rpy(0);
                 m_control_allocation_matrix(DOF::PITCH, j) = rpy(1);
-                m_control_allocation_matrix(DOF::YAW, j) = rpy(2);       
-            }      
+                m_control_allocation_matrix(DOF::YAW, j) = rpy(2);             
+            }
         }
         else
         {
@@ -635,14 +919,53 @@ bool MvpControlROS::f_update_control_allocation_matrix() {
     Eigen::VectorXd upper_limit(m_thrusters.size());
     Eigen::VectorXd lower_limit(m_thrusters.size());
 
-    for(int i = 0 ; i < m_thrusters.size() ; i++) {
+    for(int i = 0; i < m_thrusters.size(); i++) {
+        // Default values for upper and lower limits
         upper_limit[i] = m_thrusters[i]->m_force_max;
         lower_limit[i] = m_thrusters[i]->m_force_min;
+
     }
 
     m_mvp_control->set_lower_limit(lower_limit);
 
     m_mvp_control->set_upper_limit(upper_limit);
+
+    // Define vectors for upper and lower angle limits
+    Eigen::VectorXd angle_upper_limit(m_thrusters.size());
+    Eigen::VectorXd angle_lower_limit(m_thrusters.size());
+
+    for (int i = 0; i < m_thrusters.size(); i++) {
+        // Check if m_angle_max is available
+        if (m_thrusters[i]->m_angle_max != -1) {
+            angle_upper_limit[i] = m_thrusters[i]->m_angle_max;
+        } else {
+            angle_upper_limit[i] = 0;
+        }
+
+        // Check if m_angle_min is available
+        if (m_thrusters[i]->m_angle_min != -1) {
+            angle_lower_limit[i] = m_thrusters[i]->m_angle_min;
+        } else {
+            angle_lower_limit[i] = 0;
+        }
+    }
+
+    m_mvp_control->set_lower_angle(angle_lower_limit);
+    m_mvp_control->set_upper_angle(angle_upper_limit);
+
+    // Define vector for servo speeds
+    Eigen::VectorXd servo_speed(m_thrusters.size());
+
+    for (int i = 0; i < m_thrusters.size(); i++) {
+        // Check if m_omega is available
+        if (m_thrusters[i]->m_omega != -1) {
+            servo_speed[i] = m_thrusters[i]->m_omega;
+        } else {
+            servo_speed[i] = 0;
+        }
+    }
+
+    m_mvp_control->set_servo_speed(servo_speed);
 
     return true;
 }
@@ -743,7 +1066,7 @@ bool MvpControlROS::f_compute_process_values() {
         }
         else
         {
-            // printf("time %lf, dt=%lf \r\n", cg_odom.header.stamp.toSec(), ros::Time::now().toSec());
+            //printf("time %lf, dt=%lf \r\n", cg_odom.header.stamp.toSec(), ros::Time::now().toSec());
             ROS_WARN( "%s to %s TF too old!", m_cg_link_id.c_str(), m_odometry_msg.child_frame_id.c_str() );
             return false;
         }
@@ -800,12 +1123,11 @@ bool MvpControlROS::f_compute_process_values() {
     return true;
 }
 
-
 void MvpControlROS::f_control_loop() {
 
     double pt = ros::Time::now().toSec();
     setpoint_timer = ros::Time::now().toSec();
-    
+
     auto r = ros::Rate(m_controller_frequency);
 
     while(ros::ok()) {
@@ -817,7 +1139,6 @@ void MvpControlROS::f_control_loop() {
         if(!r.sleep()) {
             continue;
         }
-
 
         /**
          * Compute the state of the system. Continue on failure. This may
@@ -831,7 +1152,7 @@ void MvpControlROS::f_control_loop() {
          * Check if controller is enabled or not.
          */
         double time_since_last_setpoint = ros::Time::now().toSec() - setpoint_timer;
-        // printf("timeout = %lf, %lf\r\n", time_since_last_setpoint, m_no_setpoint_timeout);
+        //printf("timeout = %lf, %lf\r\n", time_since_last_setpoint, m_no_setpoint_timeout);
         // if(!m_enabled) {
         if(!m_enabled || time_since_last_setpoint > m_no_setpoint_timeout) {
              for(int i = 0 ; i < m_thrusters.size() ; i++) {
@@ -851,13 +1172,118 @@ void MvpControlROS::f_control_loop() {
          * Calculate forces to be requested from thrusters. If operation fails,
          * do not send commands to thrusters.
          */
-        if(m_mvp_control->calculate_needed_forces(&needed_forces, dt)) {
 
-            for(int i = 0 ; i < m_thrusters.size() ; i++) {
-                m_thrusters.at(i)->request_force(needed_forces(i));
+        if (m_mvp_control->calculate_needed_forces(&needed_forces, dt)) {
+            bool all_transforms_available = true;
+            std::vector<geometry_msgs::TransformStamped> transforms(m_thrusters.size());
+            std::vector<double> current_angles(m_thrusters.size());  
+
+            // First pass: Check the availability of all required transforms
+            for (int i = 0; i < m_thrusters.size(); ) {
+                auto is_articulated = m_thrusters.at(i)->get_is_articulated();
+
+                if (is_articulated == 1 && i + 1 < m_thrusters.size()) {
+                    std::string thruster_link_id = m_thrusters.at(i)->get_link_id();
+                    std::string servo_link_id = m_thrusters.at(i)->get_servo_link_id();
+
+                    try {
+                        transforms[i] = m_transform_buffer.lookupTransform(
+                            servo_link_id, 
+                            thruster_link_id,  
+                            ros::Time(0)
+                        );
+                    } catch (tf2::TransformException &ex) {
+                        all_transforms_available = false;
+                        ROS_WARN("Transform not available for thruster %d: %s", i, ex.what());
+                        break;
+                    }
+
+                    i += 2;  // Move to the next pair of articulated thrusters
+                } else {
+                    i++; // Move to the next thruster
+                }
             }
 
+            // Second pass: Apply control commands if all transforms are available
+            if (all_transforms_available) {
+                for (int i = 0; i < m_thrusters.size(); ) {
+                    auto is_articulated = m_thrusters.at(i)->get_is_articulated();
+
+                    int index = i;
+
+                    if (is_articulated == 1 && i + 1 < m_thrusters.size()) {
+                        double combined_force = sqrt(pow(needed_forces(i), 2) + pow(needed_forces(i + 1), 2));
+                        
+                        std::string thruster_link_id = m_thrusters.at(i)->get_link_id();
+                        std::string servo_link_id = m_thrusters.at(i)->get_servo_link_id();
+                        std::string joint_name = m_tf_prefix + m_thrusters.at(i)->get_servo_joints().at(0);
+
+                        try {
+                            // Use the previously stored transform
+                            geometry_msgs::TransformStamped tf_servo_thruster = transforms[i];
+
+                            // Extract the quaternion from the transformation
+                            geometry_msgs::Quaternion quat_msg = tf_servo_thruster.transform.rotation;
+                            tf2::Quaternion tf_quat;
+                            tf2::fromMsg(quat_msg, tf_quat);
+
+                            // Convert the quaternion to a rotation matrix
+                            tf2::Matrix3x3 m(tf_quat);
+
+                            // Extract the roll, pitch, and yaw angles from the rotation matrix
+                            double roll, pitch, yaw;
+                            m.getRPY(roll, pitch, yaw);
+
+                            current_angles[i] = yaw;
+                            m_mvp_control->set_current_angle(&index, yaw);
+
+                            // Calculate the angle to be requested
+                            double x = needed_forces(i);
+                            double y = needed_forces(i + 1);
+                                
+                                if (combined_force != 0) {
+                                    
+                                    // Normalize the vector components
+                                    double unit_x = x / combined_force;
+                                    double unit_y = y / combined_force;
+                                    double calculated_angle = atan2(unit_y, unit_x);
+                                   
+                                   // Calculate the new angle since it is needed in body frame within -pi to pi
+                                    double new_angle = yaw + calculated_angle;
+                                    
+                                    // Wrap the new_angle to the range -pi to pi
+                                    new_angle = fmod(new_angle + M_PI, 2 * M_PI);
+                                    if (new_angle < 0) {
+                                        new_angle += 2 * M_PI;
+                                    }
+                                    new_angle -= M_PI;
+
+                                    m_thrusters.at(i)->request_joint_angles(joint_name, new_angle);
+                                }
+
+                        } catch (tf2::TransformException &ex) {
+                            ROS_WARN("Transform not available for thruster %d: %s", i, ex.what());
+                            all_transforms_available = false;
+                            break;
+                        }
+
+                        m_thrusters.at(i)->request_force(combined_force);
+
+                        i += 2;  // Move to the next pair of articulated thrusters
+                    } else {
+                        if (index < needed_forces.size()) {
+                            m_thrusters.at(i)->request_force(needed_forces(index));
+                        }
+                        // Not articulated so no rotation state
+                        m_mvp_control->set_current_angle(&index, 0);
+                        i++; // Move to the next thruster
+                    }
+                }
+            } else {
+                ROS_WARN("Not all required transforms are available. Control commands not applied.");
+            }
         }
+
 
         /**
          * Record the time that loop ends. Later, it will feed the PID
@@ -871,6 +1297,12 @@ void MvpControlROS::f_cb_msg_odometry(
         const nav_msgs::Odometry::ConstPtr &msg) {
     std::scoped_lock lock(m_odom_lock);
     m_odometry_msg = *msg;
+}
+
+void MvpControlROS::f_cb_msg_joint_state(
+        const sensor_msgs::JointState::ConstPtr &msg) {
+    std::scoped_lock lock(m_joint_state_lock);
+    m_latest_joint_state = *msg;
 }
 
 void MvpControlROS::f_cb_srv_set_point(
@@ -1257,7 +1689,6 @@ bool MvpControlROS::f_cb_srv_disable(
     return true;
 }
 
-
 bool MvpControlROS::f_cb_srv_get_controller_state(
         std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &resp) {
     resp.success = true;
@@ -1270,7 +1701,6 @@ bool MvpControlROS::f_cb_srv_get_controller_state(
 
     return true;
 }
-
 
 bool MvpControlROS::f_cb_srv_get_active_mode(
     mvp_msgs::GetControlMode::Request& req,
@@ -1435,7 +1865,7 @@ bool MvpControlROS::f_amend_control_mode(std::string mode) {
 
         // ROS_INFO_STREAM("Controller mode changed to " << mode);
 
-        // mode is not empty. mode is in the modes list. operation is valid.
+        // Mode is not empty. mode is in the modes list. operation is valid.
         return true;
     } else {
 
@@ -1443,7 +1873,6 @@ bool MvpControlROS::f_amend_control_mode(std::string mode) {
         return true;
     }
 }
-
 
 bool MvpControlROS::f_amend_set_point(
     const mvp_msgs::ControlProcess &set_point) {
