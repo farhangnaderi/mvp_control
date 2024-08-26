@@ -229,7 +229,7 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
         single_count++;
     }
 
-    int kNumConstraints = 3 * pair_count + single_count;
+    int kNumConstraints = 5 * pair_count + single_count;
     int kNumVariables = m_control_allocation_matrix.cols();
 
     // Helper for adjusted dimension boundaries vector
@@ -271,6 +271,8 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
     for (size_t i = 0; i < m_thruster_vector.size(); ++i) {
         int thruster_setting = static_cast<int>(m_thruster_vector[i]);
         double beta = m_current_angles[i];
+        int thruster_direction = 1;
+
         switch (thruster_setting) {
             case 0:
                 A_triplets.emplace_back(j, i, 1.0);
@@ -279,20 +281,75 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
                 j++;
                 break;
             case 1:
-                A_triplets.emplace_back(j, i, 1.0);
-                A_triplets.emplace_back(j + 1, i, tan(-std::min(m_servo_speed[i] * deltaT , m_upper_angle[i] - beta)));
-                A_triplets.emplace_back(j + 2, i, tan(std::max(-m_servo_speed[i] * deltaT , m_lower_angle[i] - beta)));
-                A_triplets.emplace_back(j + 1, i + 1, 1.0);
-                A_triplets.emplace_back(j + 2, i + 1, -1.0);
 
-                qp_instance.lower_bounds[j] = 0;
-                qp_instance.upper_bounds[j] = m_adjusted_upper_limit[j] * std::cos(m_servo_speed[i] * deltaT);
+                // A_triplets.emplace_back(j, i, 1.0);
+                // A_triplets.emplace_back(j + 1, i, tan(-std::min(m_servo_speed[i] * deltaT , m_upper_angle[i] - beta)));
+                // A_triplets.emplace_back(j + 2, i, tan(std::max(-m_servo_speed[i] * deltaT , m_lower_angle[i] - beta)));
+                // A_triplets.emplace_back(j + 1, i + 1, 1.0);
+                // A_triplets.emplace_back(j + 2, i + 1, -1.0);
+
+                // qp_instance.lower_bounds[j] = 0;
+                // qp_instance.upper_bounds[j] = m_adjusted_upper_limit[j] * std::cos(m_servo_speed[i] * deltaT);
+                // qp_instance.lower_bounds[j + 1] = -kInfinity;
+                // qp_instance.upper_bounds[j + 1] = 0;
+                // qp_instance.lower_bounds[j + 2] = -kInfinity;
+                // qp_instance.upper_bounds[j + 2] = 0;
+                // j += 3; //jumping the constraint rows
+                // break;
+                if (thruster_direction == 1)
+                {
+
+                A_triplets.emplace_back(j, i, 1.0);
+                A_triplets.emplace_back(j + 1, i, -tan(m_servo_speed[i] * deltaT ));
+                A_triplets.emplace_back(j + 2, i, -tan(-m_servo_speed[i] * deltaT ));
+                A_triplets.emplace_back(j + 3, i, -tan(m_upper_angle[i] - beta   ));
+                A_triplets.emplace_back(j + 4, i, -tan(m_lower_angle[i] - beta   ));
+                A_triplets.emplace_back(j + 1, i + 1, 1.0);
+                A_triplets.emplace_back(j + 2, i + 1, 1.0);
+                A_triplets.emplace_back(j + 3, i + 1, 1.0);
+                A_triplets.emplace_back(j + 4, i + 1, 1.0);
+
+                qp_instance.lower_bounds[j] =      0;
+                qp_instance.upper_bounds[j] =      m_adjusted_upper_limit[j] * std::cos(m_servo_speed[i] * deltaT);
                 qp_instance.lower_bounds[j + 1] = -kInfinity;
-                qp_instance.upper_bounds[j + 1] = 0;
-                qp_instance.lower_bounds[j + 2] = -kInfinity;
-                qp_instance.upper_bounds[j + 2] = 0;
-                j += 3; //jumping the constraint rows
+                qp_instance.upper_bounds[j + 1] =  0;
+                qp_instance.lower_bounds[j + 2] =  0;
+                qp_instance.upper_bounds[j + 2] =  kInfinity;
+                qp_instance.lower_bounds[j + 3] = -kInfinity;
+                qp_instance.upper_bounds[j + 3] =  0;
+                qp_instance.lower_bounds[j + 4] =  0;
+                qp_instance.upper_bounds[j + 4] =  kInfinity;
+                j += 5; //jumping the constraint rows
                 break;
+
+                }
+                else if (thruster_direction == -1){
+
+                A_triplets.emplace_back(j, i, 1.0);
+                A_triplets.emplace_back(j + 1, i, -tan(m_servo_speed[i] * deltaT ));
+                A_triplets.emplace_back(j + 2, i, -tan(-m_servo_speed[i] * deltaT ));
+                A_triplets.emplace_back(j + 3, i, -tan(m_upper_angle[i] - beta   ));
+                A_triplets.emplace_back(j + 4, i, -tan(m_lower_angle[i] - beta   ));
+                A_triplets.emplace_back(j + 1, i + 1, 1.0);
+                A_triplets.emplace_back(j + 2, i + 1, 1.0);
+                A_triplets.emplace_back(j + 3, i + 1, 1.0);
+                A_triplets.emplace_back(j + 4, i + 1, 1.0);
+
+                qp_instance.lower_bounds[j] =      m_adjusted_lower_limit[j] * std::cos(m_servo_speed[i] * deltaT);
+                qp_instance.upper_bounds[j] =      0;
+                qp_instance.lower_bounds[j + 1] =  0;
+                qp_instance.upper_bounds[j + 1] =  kInfinity;
+                qp_instance.lower_bounds[j + 2] = -kInfinity;
+                qp_instance.upper_bounds[j + 2] =  0;
+                qp_instance.lower_bounds[j + 3] =  0;
+                qp_instance.upper_bounds[j + 3] =  kInfinity;
+                qp_instance.lower_bounds[j + 4] = -kInfinity;
+                qp_instance.upper_bounds[j + 4] =  0;
+                j += 5; //jumping the constraint rows
+                
+                break;
+
+                }
             case 2:
                 // Add any specific handling for thruster setting 2 if necessary
                 break;

@@ -1208,11 +1208,19 @@ void MvpControlROS::f_control_loop() {
             if (all_transforms_available) {
                 for (int i = 0; i < m_thrusters.size(); ) {
                     auto is_articulated = m_thrusters.at(i)->get_is_articulated();
-
+                    double combined_force,calculated_angle;
                     int index = i;
 
                     if (is_articulated == 1 && i + 1 < m_thrusters.size()) {
-                        double combined_force = sqrt(pow(needed_forces(i), 2) + pow(needed_forces(i + 1), 2));
+                        if (needed_forces(i)<0){
+                            combined_force = -sqrt(pow(needed_forces(i), 2) + pow(needed_forces(i + 1), 2));
+                        }
+                        else
+                        {
+                            combined_force =  sqrt(pow(needed_forces(i), 2) + pow(needed_forces(i + 1), 2));
+                        }
+
+                        //double combined_force = sqrt(pow(needed_forces(i), 2) + pow(needed_forces(i + 1), 2));
                         
                         std::string thruster_link_id = m_thrusters.at(i)->get_link_id();
                         std::string servo_link_id = m_thrusters.at(i)->get_servo_link_id();
@@ -1244,10 +1252,15 @@ void MvpControlROS::f_control_loop() {
                                 if (combined_force != 0) {
                                     
                                     // Normalize the vector components
-                                    double unit_x = x / combined_force;
-                                    double unit_y = y / combined_force;
-                                    double calculated_angle = atan2(unit_y, unit_x);
-                                   
+                                    //double unit_x = x / combined_force;
+                                    //double unit_y = y / combined_force;
+                                    if (x > 0){
+                                        calculated_angle = atan2(y, x);
+                                    }
+                                    else
+                                    {
+                                        calculated_angle = atan2(-y, -x);
+                                    }
                                    // Calculate the new angle since it is needed in body frame within -pi to pi
                                     double new_angle = yaw + calculated_angle;
                                     
