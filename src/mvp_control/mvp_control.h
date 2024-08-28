@@ -106,7 +106,7 @@ namespace ctrl {
         double beta;
 
         //! @brief Store the current angles for each servo
-        std::vector<double> m_current_angles; //
+        std::vector<double> m_current_angles; 
 
         //! @brief Adjusted upper limit for thruster constraints
         std::vector<int> m_adjusted_upper_limit;

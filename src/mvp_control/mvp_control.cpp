@@ -243,15 +243,48 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
 
     for (size_t i = 0; i < m_thruster_vector.size(); ++i) {
         int thruster_value = m_thruster_vector[i];
-        thruster_case_values.push_back(thruster_value == 2 ? 1 : thruster_value);
+        // thruster_case_values.push_back(thruster_value == 2 ? 1 : thruster_value);
+        // m_adjusted_upper_limit.push_back(m_upper_limit[i]);
+        // m_adjusted_lower_limit.push_back(m_lower_limit[i]);
+        // m_adjusted_upper_limit.push_back(m_upper_limit[i]);
+        // m_adjusted_lower_limit.push_back(m_lower_limit[i]);
+        switch (thruster_value) {
+            case 0:
+                thruster_case_values.push_back(thruster_value);
+                m_adjusted_upper_limit.push_back(m_upper_limit[i]);
+                m_adjusted_lower_limit.push_back(m_lower_limit[i]);
+                break;
 
-        m_adjusted_upper_limit.push_back(m_upper_limit[i]);
-        m_adjusted_lower_limit.push_back(m_lower_limit[i]);
+            case 1:
 
-        if (thruster_value == 2) {
-            m_adjusted_upper_limit.push_back(m_upper_limit[i]);
-            m_adjusted_lower_limit.push_back(m_lower_limit[i]);
+                thruster_case_values.push_back(thruster_value);
+                m_adjusted_upper_limit.push_back(m_upper_limit[i]);
+                m_adjusted_lower_limit.push_back(m_lower_limit[i]);
+                m_adjusted_upper_limit.push_back(m_upper_limit[i]);
+                m_adjusted_lower_limit.push_back(m_lower_limit[i]);
+                m_adjusted_upper_limit.push_back(m_upper_limit[i]);
+                m_adjusted_lower_limit.push_back(m_lower_limit[i]);
+                m_adjusted_upper_limit.push_back(m_upper_limit[i]);
+                m_adjusted_lower_limit.push_back(m_lower_limit[i]);
+                break;
+
+            case 2:
+
+                thruster_case_values.push_back(1);
+                break;
+
+            default:
+
+                ROS_WARN_STREAM("Invalid thruster value: " << thruster_value);
+                break;
         }
+        //printf("thruster value = %d, upper limit = %f, lower limit = %f\r\n", thruster_value, m_upper_limit[i], m_lower_limit[i]);
+        // printf("adjusted upper limit = %d, adjusted lower limit = %d\r\n", m_adjusted_upper_limit[i], m_adjusted_lower_limit[i]);
+        // printf("adjusted upper limit = %d, adjusted lower limit = %d\r\n", m_adjusted_upper_limit[i + 1], m_adjusted_lower_limit[i + 1]);
+        // printf("adjusted upper limit = %d, adjusted lower limit = %d\r\n", m_adjusted_upper_limit[i + 2], m_adjusted_lower_limit[i + 2]);
+        // printf("adjusted upper limit = %d, adjusted lower limit = %d\r\n", m_adjusted_upper_limit[i + 3], m_adjusted_lower_limit[i + 3]);
+        // printf("adjusted upper limit = %d, adjusted lower limit = %d\r\n", m_adjusted_upper_limit[i + 4], m_adjusted_lower_limit[i + 4]);
+        //printf("thruster case value = %d\r\n", thruster_case_values[i]);
     }
 
     // Setup OSQP solver instance
@@ -265,19 +298,20 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
     A_sparse.setZero(); // Set all constraint matrix values to 0
     std::vector<Eigen::Triplet<double>> A_triplets;
 
-    size_t j = 0;  // Row counter
-
+    int j = 0;  // Row counter
+    int thruster_direction = -1;    
     // Construct constraint matrix and bounds
     for (size_t i = 0; i < m_thruster_vector.size(); ++i) {
         int thruster_setting = static_cast<int>(m_thruster_vector[i]);
         double beta = m_current_angles[i];
-        int thruster_direction = 1;
+        
 
         switch (thruster_setting) {
             case 0:
                 A_triplets.emplace_back(j, i, 1.0);
-                qp_instance.lower_bounds[j] = m_adjusted_lower_limit[j];
-                qp_instance.upper_bounds[j] = m_adjusted_upper_limit[j];
+                qp_instance.lower_bounds[j] = -30; //m_adjusted_lower_limit[j];
+                qp_instance.upper_bounds[j] = 30; //m_adjusted_upper_limit[j];
+                //printf("lower bound = %lf, upper bound = %lf\r\n", qp_instance.lower_bounds[j], qp_instance.upper_bounds[j]);
                 j++;
                 break;
             case 1:
@@ -310,7 +344,7 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
                 A_triplets.emplace_back(j + 4, i + 1, 1.0);
 
                 qp_instance.lower_bounds[j] =      0;
-                qp_instance.upper_bounds[j] =      m_adjusted_upper_limit[j] * std::cos(m_servo_speed[i] * deltaT);
+                qp_instance.upper_bounds[j] =      30;//m_adjusted_upper_limit[j] * std::cos(m_servo_speed[i] * deltaT);
                 qp_instance.lower_bounds[j + 1] = -kInfinity;
                 qp_instance.upper_bounds[j + 1] =  0;
                 qp_instance.lower_bounds[j + 2] =  0;
@@ -329,27 +363,35 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
                 A_triplets.emplace_back(j + 1, i, -tan(m_servo_speed[i] * deltaT ));
                 A_triplets.emplace_back(j + 2, i, -tan(-m_servo_speed[i] * deltaT ));
                 A_triplets.emplace_back(j + 3, i, -tan(m_upper_angle[i] - beta   ));
-                A_triplets.emplace_back(j + 4, i, -tan(m_lower_angle[i] - beta   ));
+                A_triplets.emplace_back(j + 4, i, -tan(m_upper_angle[i] - beta   ));
                 A_triplets.emplace_back(j + 1, i + 1, 1.0);
                 A_triplets.emplace_back(j + 2, i + 1, 1.0);
                 A_triplets.emplace_back(j + 3, i + 1, 1.0);
                 A_triplets.emplace_back(j + 4, i + 1, 1.0);
 
-                qp_instance.lower_bounds[j] =      m_adjusted_lower_limit[j] * std::cos(m_servo_speed[i] * deltaT);
+                qp_instance.lower_bounds[j] =     -30; //m_adjusted_lower_limit[j] * std::cos(m_servo_speed[i] * deltaT);
+                //printf("lower bound = %lf, upper bound = %lf\r\n", qp_instance.lower_bounds[j], qp_instance.upper_bounds[j]);
                 qp_instance.upper_bounds[j] =      0;
+                //printf("lower bound = %lf, upper bound = %lf\r\n", qp_instance.lower_bounds[j], qp_instance.upper_bounds[j]);
                 qp_instance.lower_bounds[j + 1] =  0;
                 qp_instance.upper_bounds[j + 1] =  kInfinity;
-                qp_instance.lower_bounds[j + 2] = -kInfinity;
+                qp_instance.lower_bounds[j + 2] =  -kInfinity;
                 qp_instance.upper_bounds[j + 2] =  0;
                 qp_instance.lower_bounds[j + 3] =  0;
                 qp_instance.upper_bounds[j + 3] =  kInfinity;
-                qp_instance.lower_bounds[j + 4] = -kInfinity;
+                qp_instance.lower_bounds[j + 4] =  -kInfinity;
                 qp_instance.upper_bounds[j + 4] =  0;
                 j += 5; //jumping the constraint rows
                 
                 break;
 
                 }
+                else
+                {
+                    ROS_ERROR("Thruster direction is not set!");
+                    return false;
+                }
+                
             case 2:
                 // Add any specific handling for thruster setting 2 if necessary
                 break;

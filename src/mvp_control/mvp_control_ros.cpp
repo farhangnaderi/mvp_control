@@ -1200,7 +1200,7 @@ void MvpControlROS::f_control_loop() {
 
                     i += 2;  // Move to the next pair of articulated thrusters
                 } else {
-                    i++; // Move to the next thruster
+                    i++; // Move to the next non-articulated thruster
                 }
             }
 
@@ -1215,10 +1215,17 @@ void MvpControlROS::f_control_loop() {
                         if (needed_forces(i)<0){
                             combined_force = -sqrt(pow(needed_forces(i), 2) + pow(needed_forces(i + 1), 2));
                         }
-                        else
+                        else if (needed_forces(i)>0)
                         {
                             combined_force =  sqrt(pow(needed_forces(i), 2) + pow(needed_forces(i + 1), 2));
                         }
+                        printf("needed_forces = %lf, %lf\r\n", needed_forces(i), needed_forces(i + 1));
+                        printf("combined_force = %lf\r\n", combined_force);
+
+                        // else
+                        // {
+                        //     combined_force = 0;
+                        // }
 
                         //double combined_force = sqrt(pow(needed_forces(i), 2) + pow(needed_forces(i + 1), 2));
                         
@@ -1257,13 +1264,17 @@ void MvpControlROS::f_control_loop() {
                                     if (x > 0){
                                         calculated_angle = atan2(y, x);
                                     }
-                                    else
+                                    else if (x < 0)
                                     {
                                         calculated_angle = atan2(-y, -x);
                                     }
+                                    // else
+                                    // {
+                                    //     calculated_angle = 0;
+                                    // }
                                    // Calculate the new angle since it is needed in body frame within -pi to pi
-                                    double new_angle = yaw + calculated_angle;
-                                    
+                                    double new_angle =  yaw + calculated_angle;
+                                    printf("yaw = %lf, calculated_angle = %lf, new_angle = %lf\r\n", yaw, calculated_angle, new_angle);
                                     // Wrap the new_angle to the range -pi to pi
                                     new_angle = fmod(new_angle + M_PI, 2 * M_PI);
                                     if (new_angle < 0) {
