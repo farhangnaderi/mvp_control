@@ -105,6 +105,8 @@ namespace ctrl {
         //! @brief the angle between the thruster and the x-axis
         double beta;
 
+        int m_thruster_direction;  // Store the single thruster direction value
+
         //! @brief Store the current angles for each servo
         std::vector<double> m_current_angles; //
 
@@ -186,6 +188,19 @@ namespace ctrl {
          */
         void set_thruster_articulation_vector(
             const decltype(m_thruster_vector) &vector);
+
+        /**
+         * @brief Setter for thruster direction
+         *
+         * @param direction The new thruster direction value
+         */
+        void set_thrust_direction(int direction);
+
+        /** @brief Getter for thruster direction
+         *
+         * @return The thruster direction
+         */
+        int get_thrust_direction() const;
 
         /**
          * @brief Trivial Setter for controller frequency

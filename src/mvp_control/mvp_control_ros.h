@@ -193,6 +193,9 @@ namespace ctrl {
         //! @brief Set point subscriber
         ros::Subscriber m_set_point_subscriber;
 
+        //! @brief Thruster action subscriber
+        ros::Subscriber m_thruster_action_subscriber;
+
         //! @brief Joint State subscriber
         ros::Subscriber m_joint_state_subscriber;
 
@@ -456,6 +459,10 @@ namespace ctrl {
         void initialize();
 
         void f_cb_msg_joint_state(const sensor_msgs::JointState::ConstPtr &msg);
+
+        // Declare the thruster action callback function
+        void f_cb_msg_thruster_action(const std_msgs::Float32::ConstPtr& msg);
+
 
         //! @brief Generic typedef for shared pointer
         typedef std::shared_ptr<MvpControlROS> Ptr;

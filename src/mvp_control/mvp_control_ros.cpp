@@ -124,6 +124,13 @@ MvpControlROS::MvpControlROS()
         this
     );
 
+    m_thruster_action_subscriber = m_nh.subscribe<std_msgs::Float32>(
+        "/thruster_action",   // Topic name
+        100,                  // Queue size
+        &MvpControlROS::f_cb_msg_thruster_action,  // Callback function
+        this                  // The class instance
+    );
+
     /**
      * Initialize publishers
      */
@@ -1208,16 +1215,21 @@ void MvpControlROS::f_control_loop() {
             if (all_transforms_available) {
                 for (int i = 0; i < m_thrusters.size(); ) {
                     auto is_articulated = m_thrusters.at(i)->get_is_articulated();
-                    double combined_force,calculated_angle;
+                    double combined_force;
+                    double calculated_angle=0;
                     int index = i;
 
                     if (is_articulated == 1 && i + 1 < m_thrusters.size()) {
                         if (needed_forces(i)<0){
                             combined_force = -sqrt(pow(needed_forces(i), 2) + pow(needed_forces(i + 1), 2));
                         }
-                        else
+                        else if (needed_forces(i)> 0)
                         {
                             combined_force =  sqrt(pow(needed_forces(i), 2) + pow(needed_forces(i + 1), 2));
+                        }
+                        else
+                        {
+                            combined_force = 0;
                         }
 
                         //double combined_force = sqrt(pow(needed_forces(i), 2) + pow(needed_forces(i + 1), 2));
@@ -1248,7 +1260,7 @@ void MvpControlROS::f_control_loop() {
                             // Calculate the angle to be requested
                             double x = needed_forces(i);
                             double y = needed_forces(i + 1);
-                                
+                                printf("x = %lf, y = %lf, combined_force = %lf\r\n", x, y, combined_force);
                                 if (combined_force != 0) {
                                     
                                     // Normalize the vector components
@@ -1257,19 +1269,29 @@ void MvpControlROS::f_control_loop() {
                                     if (x > 0){
                                         calculated_angle = atan2(y, x);
                                     }
-                                    else
+                                    else if (x < 0)
                                     {
                                         calculated_angle = atan2(-y, -x);
                                     }
-                                   // Calculate the new angle since it is needed in body frame within -pi to pi
-                                    double new_angle = yaw + calculated_angle;
-                                    
-                                    // Wrap the new_angle to the range -pi to pi
-                                    new_angle = fmod(new_angle + M_PI, 2 * M_PI);
-                                    if (new_angle < 0) {
-                                        new_angle += 2 * M_PI;
+                                    else
+                                    {
+                                        calculated_angle = 0;
                                     }
-                                    new_angle -= M_PI;
+                                   // Calculate the new angle since it is needed in body frame within -pi to pi
+                                    double new_angle =  yaw + calculated_angle;
+                                    printf("yaw = %lf, calculated_angle = %lf, new_angle = %lf\r\n", yaw, calculated_angle, new_angle);
+                                    // // Wrap the new_angle to the range -pi to pi
+                                    // new_angle = fmod(new_angle + M_PI, 2 * M_PI);
+                                    // if (new_angle < 0) {
+                                    //     new_angle += 2 * M_PI;
+                                    // }
+                                    // new_angle -= M_PI;
+                                    // Wrap the new_angle to the range pi to -pi
+                                    new_angle = fmod(new_angle - M_PI, 2 * M_PI);
+                                    if (new_angle > 0) {
+                                        new_angle -= 2 * M_PI;
+                                    }
+                                    new_angle += M_PI;
 
                                     m_thrusters.at(i)->request_joint_angles(joint_name, new_angle);
                                 }
@@ -1316,6 +1338,17 @@ void MvpControlROS::f_cb_msg_joint_state(
         const sensor_msgs::JointState::ConstPtr &msg) {
     std::scoped_lock lock(m_joint_state_lock);
     m_latest_joint_state = *msg;
+}
+
+void MvpControlROS::f_cb_msg_thruster_action(const std_msgs::Float32::ConstPtr& msg)
+{
+    // Convert the float value to an integer 
+    int thruster_direction = static_cast<int>(msg->data);
+
+    // Call the setter function directly with the thruster direction (no index needed)
+    m_mvp_control->set_thrust_direction(thruster_direction);
+    
+    ROS_WARN("Thruster action received: %d", thruster_direction);
 }
 
 void MvpControlROS::f_cb_srv_set_point(
