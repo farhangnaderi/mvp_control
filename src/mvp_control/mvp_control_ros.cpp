@@ -1270,7 +1270,6 @@ void MvpControlROS::f_control_loop() {
                                         calculated_angle = atan2(y, x);
                                     }
                                     else if (x < 0)
-                                    else if (x < 0)
                                     {
                                         calculated_angle = atan2(-y, -x);
                                     }
