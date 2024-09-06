@@ -1207,7 +1207,7 @@ void MvpControlROS::f_control_loop() {
 
                     i += 2;  // Move to the next pair of articulated thrusters
                 } else {
-                    i++; // Move to the next thruster
+                    i++; // Move to the next non-articulated thruster
                 }
             }
 
@@ -1269,6 +1269,7 @@ void MvpControlROS::f_control_loop() {
                                     if (x > 0){
                                         calculated_angle = atan2(y, x);
                                     }
+                                    else if (x < 0)
                                     else if (x < 0)
                                     {
                                         calculated_angle = atan2(-y, -x);

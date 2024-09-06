@@ -108,7 +108,7 @@ namespace ctrl {
         int m_thruster_direction;  // Store the single thruster direction value
 
         //! @brief Store the current angles for each servo
-        std::vector<double> m_current_angles; //
+        std::vector<double> m_current_angles; 
 
         //! @brief Adjusted upper limit for thruster constraints
         std::vector<int> m_adjusted_upper_limit;
