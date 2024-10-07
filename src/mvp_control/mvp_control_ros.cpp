@@ -124,7 +124,7 @@ MvpControlROS::MvpControlROS()
         this
     );
 
-    m_thruster_action_subscriber = m_nh.subscribe<std_msgs::Float32>(
+    m_thruster_action_subscriber = m_nh.subscribe<std_msgs::Int32MultiArray>(
         "/thruster_action",   // Topic name
         100,                  // Queue size
         &MvpControlROS::f_cb_msg_thruster_action,  // Callback function
@@ -1197,8 +1197,14 @@ void MvpControlROS::f_control_loop() {
                         transforms[i] = m_transform_buffer.lookupTransform(
                             servo_link_id, 
                             thruster_link_id,  
-                            ros::Time(0)
+                            ros::Time::now(),
+                            ros::Duration(0.2)
                         );
+                        // transforms[i] = m_transform_buffer.lookupTransform(
+                        //     servo_link_id, 
+                        //     thruster_link_id,  
+                        //     ros::Time(0)
+                        // );
                     } catch (tf2::TransformException &ex) {
                         all_transforms_available = false;
                         ROS_WARN("Transform not available for thruster %d: %s", i, ex.what());
@@ -1237,7 +1243,7 @@ void MvpControlROS::f_control_loop() {
                         std::string thruster_link_id = m_thrusters.at(i)->get_link_id();
                         std::string servo_link_id = m_thrusters.at(i)->get_servo_link_id();
                         std::string joint_name = m_tf_prefix + m_thrusters.at(i)->get_servo_joints().at(0);
-
+                        //ROS_INFO("Joint name: %s", joint_name.c_str());
                         try {
                             // Use the previously stored transform
                             geometry_msgs::TransformStamped tf_servo_thruster = transforms[i];
@@ -1260,26 +1266,54 @@ void MvpControlROS::f_control_loop() {
                             // Calculate the angle to be requested
                             double x = needed_forces(i);
                             double y = needed_forces(i + 1);
-                                printf("x = %lf, y = %lf, combined_force = %lf\r\n", x, y, combined_force);
+                            double new_angle = 0;
+                               // printf("x = %lf, y = %lf, combined_force = %lf\r\n", x, y, combined_force);
                                 if (combined_force != 0) {
                                     
                                     // Normalize the vector components
                                     //double unit_x = x / combined_force;
                                     //double unit_y = y / combined_force;
-                                    if (x > 0){
+                                    if (x >= 0){
                                         calculated_angle = atan2(y, x);
+                                        new_angle =   calculated_angle + yaw;
+                                        new_angle = fmod(new_angle + M_PI, 2 * M_PI);
+                                        if (new_angle < 0) {
+                                            new_angle += 2 * M_PI;
+                                        }
+                                        new_angle -= M_PI;
+                                        //Wrap the new_angle to the range pi to -pi
+                                        new_angle = fmod(new_angle - M_PI, 2 * M_PI);
+                                        if (new_angle > 0) {
+                                            new_angle -= 2 * M_PI;
+                                        }
+                                        new_angle += M_PI;
+
                                     }
                                     else if (x < 0)
                                     {
                                         calculated_angle = atan2(-y, -x);
+                                        new_angle =  calculated_angle + yaw;
+
+                                        new_angle = fmod(new_angle + M_PI, 2 * M_PI);
+                                        if (new_angle < 0) {
+                                            new_angle += 2 * M_PI;
+                                        }
+                                        new_angle -= M_PI;
+                                        //Wrap the new_angle to the range pi to -pi
+                                        new_angle = fmod(new_angle - M_PI, 2 * M_PI);
+                                        if (new_angle > 0) {
+                                            new_angle -= 2 * M_PI;
+                                        }
+                                        new_angle += M_PI;
                                     }
                                     else
                                     {
-                                        calculated_angle = 0;
+                                        // calculated_angle = 0;
+                                        continue;
                                     }
                                    // Calculate the new angle since it is needed in body frame within -pi to pi
-                                    double new_angle =  yaw + calculated_angle;
-                                    printf("yaw = %lf, calculated_angle = %lf, new_angle = %lf\r\n", yaw, calculated_angle, new_angle);
+                                    
+
                                     // // Wrap the new_angle to the range -pi to pi
                                     // new_angle = fmod(new_angle + M_PI, 2 * M_PI);
                                     // if (new_angle < 0) {
@@ -1287,11 +1321,15 @@ void MvpControlROS::f_control_loop() {
                                     // }
                                     // new_angle -= M_PI;
                                     // Wrap the new_angle to the range pi to -pi
-                                    new_angle = fmod(new_angle - M_PI, 2 * M_PI);
-                                    if (new_angle > 0) {
-                                        new_angle -= 2 * M_PI;
-                                    }
-                                    new_angle += M_PI;
+                                    // new_angle = fmod(new_angle - M_PI, 2 * M_PI);
+                                    // if (new_angle > 0) {
+                                    //     new_angle -= 2 * M_PI;
+                                    // }
+                                    // new_angle += M_PI;
+                                    // Check if the joint_name is "race2/surge_starboard_servo2duct_joint" and log the new_angle
+                                    // if (joint_name == "race2/surge_starboard_servo2duct_joint") {
+                                    //     ROS_INFO("New angle for %s: %lf", joint_name.c_str(), new_angle);
+                                    // }
 
                                     m_thrusters.at(i)->request_joint_angles(joint_name, new_angle);
                                 }
@@ -1316,6 +1354,7 @@ void MvpControlROS::f_control_loop() {
                 }
             } else {
                 ROS_WARN("Not all required transforms are available. Control commands not applied.");
+                continue;
             }
         }
 
@@ -1340,16 +1379,16 @@ void MvpControlROS::f_cb_msg_joint_state(
     m_latest_joint_state = *msg;
 }
 
-void MvpControlROS::f_cb_msg_thruster_action(const std_msgs::Float32::ConstPtr& msg)
-{
-    // Convert the float value to an integer 
-    int thruster_direction = static_cast<int>(msg->data);
+void MvpControlROS::f_cb_msg_thruster_action(const std_msgs::Int32MultiArray::ConstPtr& msg) {
+    // Create a vector to hold the new thruster directions
+    std::vector<int> thruster_directions(msg->data.begin(), msg->data.end());
 
-    // Call the setter function directly with the thruster direction (no index needed)
-    m_mvp_control->set_thrust_direction(thruster_direction);
-    
-    ROS_WARN("Thruster action received: %d", thruster_direction);
+    // Call the setter function with the vector of thruster directions
+    m_mvp_control->set_thrust_direction(thruster_directions);
+
+    ROS_WARN("Thruster actions received and set");
 }
+
 
 void MvpControlROS::f_cb_srv_set_point(
         const mvp_msgs::ControlProcess::ConstPtr &msg) {

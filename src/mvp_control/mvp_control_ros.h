@@ -47,6 +47,7 @@
 #include <urdf/model.h>
 
 #include "std_msgs/Float32.h"
+#include "std_msgs/Int32MultiArray.h"
 #include "std_srvs/Empty.h"
 #include "std_srvs/Trigger.h"
 #include "nav_msgs/Odometry.h"
@@ -461,7 +462,7 @@ namespace ctrl {
         void f_cb_msg_joint_state(const sensor_msgs::JointState::ConstPtr &msg);
 
         // Declare the thruster action callback function
-        void f_cb_msg_thruster_action(const std_msgs::Float32::ConstPtr& msg);
+        void f_cb_msg_thruster_action(const std_msgs::Int32MultiArray::ConstPtr& msg);
 
 
         //! @brief Generic typedef for shared pointer
