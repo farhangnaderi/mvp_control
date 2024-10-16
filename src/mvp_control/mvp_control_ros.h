@@ -299,6 +299,26 @@ namespace ctrl {
         void f_control_loop();
 
         /**
+         * @brief Handles the control of articulated thrusters.
+         *
+         * This function manages the process of obtaining the necessary transformations
+         * and applying control commands to the articulated thrusters. It calculates
+         * the required joint angles based on the needed forces and adjusts the
+         * orientation of the thrusters accordingly.
+         *
+         * - It first checks for the availability of required transforms for each
+         *   articulated thruster.
+         * - If all transforms are available, it calculates the desired angles and applies
+         *   the forces.
+         * 
+         * @param needed_forces The vector of calculated forces needed by each thruster.
+         * 
+         * @return true if all transforms were successfully retrieved and commands applied, 
+         *         false otherwise.
+         */
+        bool handle_articulated_thrusters(const Eigen::VectorXd& needed_forces);
+
+        /**
          * @brief Retrieves the joint limits for a specified joint.
          *
          * This function looks up the joint limits (lower and upper bounds) for a given joint in the URDF model.

@@ -620,12 +620,50 @@ bool MvpControl::f_calculate_pid(Eigen::VectorXd *u, double dt)
 
 
 bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
-    static bool is_initialized = false;
-    if (!is_initialized) {
+    // static bool is_initialized = false;
+    // if (!is_initialized) {
         // Initialize current angles if not already done
-        m_current_angles.resize(m_thruster_vector.size(), 0.0);
-        is_initialized = true;
+        //m_current_angles.resize(m_thruster_vector.size(), 0.0);
+        m_current_angles.resize(m_thruster_vector.size());
+        std::vector<int> thruster_direction_action = get_thrust_direction();
+        // printf("thruster_direction_action size: %zu\n", thruster_direction_action.size());
+        // is_initialized = true;
+    // }
+
+    // Static variable to store the previous thruster directions
+    static std::vector<int> prev_thruster_direction_action;
+
+    // Detect changes in thruster directions
+    bool direction_changed = false;
+    if (prev_thruster_direction_action.empty()) {
+        // First call, initialize the previous directions
+        prev_thruster_direction_action = thruster_direction_action;
+    } else if (prev_thruster_direction_action.size() != thruster_direction_action.size()) {
+        // Size changed, so direction has changed
+        direction_changed = true;
+    } else {
+        // Compare each element
+        for (size_t i = 0; i < thruster_direction_action.size(); ++i) {
+            if (thruster_direction_action[i] != prev_thruster_direction_action[i]) {
+                direction_changed = true;
+                break;
+            }
+        }
     }
+
+    if (direction_changed) {
+        // Pause for 2.0 seconds
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        // Set the solution vector to zero
+        *t = Eigen::VectorXd::Zero(m_thruster_vector.size());
+        // Update the previous thruster directions
+        prev_thruster_direction_action = thruster_direction_action;
+        // Return true since we've provided a valid solution
+        return true;
+    }
+
+    // Update the previous thruster directions
+    prev_thruster_direction_action = thruster_direction_action;
 
     // Allocate and initialize control matrices and vectors
     Eigen::MatrixXd T(m_controlled_freedoms.size(), m_control_allocation_matrix.cols());
@@ -673,50 +711,77 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
     int kNumVariables = m_control_allocation_matrix.cols();
 
     // Initialize thruster direction vector
-    std::vector<int> thruster_direction_action = get_thrust_direction();
+
+    //std::vector<int> thruster_direction_action = get_thrust_direction();
+
     if (thruster_direction_action.size() != m_thruster_vector.size()) {
-        thruster_direction_action.resize(m_thruster_vector.size(), -1); // Default to 1
+        thruster_direction_action.resize(m_thruster_vector.size(), 1); // Default to 1
     }
     // Ensure that each direction is valid, or default to 1
+    // for (size_t i = 0; i < m_thruster_vector.size(); ++i) {
+    //     if (thruster_direction_action[i] != 1 && thruster_direction_action[i] != -1) {
+    //         thruster_direction_action[i] = 1;
+    //     }
+    // }
+
+   // Step 1: Calculate the total number of elements needed
+    int total_elements = 0;
     for (size_t i = 0; i < m_thruster_vector.size(); ++i) {
-        if (thruster_direction_action[i] != 1 && thruster_direction_action[i] != -1) {
-            thruster_direction_action[i] = -1;
+        int thruster_value = m_thruster_vector[i];
+        if (thruster_value == 0) {
+            total_elements += 1;
+        }
+        else if (thruster_value == 2) {
+            total_elements += 2;
+        }
+        else {
+            total_elements += 3;
         }
     }
 
-    // Prepare adjusted upper and lower limit vectors
-    m_adjusted_upper_limit.clear();
-    m_adjusted_lower_limit.clear();
-    std::vector<int> thruster_case_values;
-    thruster_case_values.reserve(kNumConstraints);
+    // Step 2: Initialize Eigen vectors with the calculated size
+    Eigen::VectorXi m_adjusted_upper_limit(total_elements);
+    Eigen::VectorXi m_adjusted_lower_limit(total_elements);
 
-    // Adjust thruster case values and limits
+    // Step 3: Populate the Eigen vectors
+    int current_index = 0;
     for (size_t i = 0; i < m_thruster_vector.size(); ++i) {
         int thruster_value = m_thruster_vector[i];
+        int upper = m_upper_limit[i];
+        int lower = m_lower_limit[i];
 
         if (thruster_value == 0) {
             // Non-articulated thruster
-            thruster_case_values.push_back(0);
-            m_adjusted_upper_limit.push_back(m_upper_limit[i]);
-            m_adjusted_lower_limit.push_back(m_lower_limit[i]);
-        } else if (thruster_value == 2) {
+            m_adjusted_upper_limit(current_index) = upper;
+            m_adjusted_lower_limit(current_index) = lower;
+            current_index++;
+        }
+        else if (thruster_value == 2) {
             // Articulated thruster (value 2 treated as 1)
-            thruster_case_values.push_back(1);
-            m_adjusted_upper_limit.push_back(m_upper_limit[i]);
-            m_adjusted_lower_limit.push_back(m_lower_limit[i]);
-            m_adjusted_upper_limit.push_back(m_upper_limit[i]);
-            m_adjusted_lower_limit.push_back(m_lower_limit[i]);
-        } else {
+            m_adjusted_upper_limit(current_index) = upper;
+            m_adjusted_lower_limit(current_index) = lower;
+            current_index++;
+            m_adjusted_upper_limit(current_index) = upper;
+            m_adjusted_lower_limit(current_index) = lower;
+            current_index++;
+        }
+        else {
             // Other articulated thruster
-            thruster_case_values.push_back(thruster_value);
-            m_adjusted_upper_limit.push_back(m_upper_limit[i]);
-            m_adjusted_lower_limit.push_back(m_lower_limit[i]);
-            m_adjusted_upper_limit.push_back(m_upper_limit[i]);
-            m_adjusted_lower_limit.push_back(m_lower_limit[i]);
-            m_adjusted_upper_limit.push_back(m_upper_limit[i]);
-            m_adjusted_lower_limit.push_back(m_lower_limit[i]);
+            m_adjusted_upper_limit(current_index) = upper;
+            m_adjusted_lower_limit(current_index) = lower;
+            current_index++;
+            m_adjusted_upper_limit(current_index) = upper;
+            m_adjusted_lower_limit(current_index) = lower;
+            current_index++;
+            m_adjusted_upper_limit(current_index) = upper;
+            m_adjusted_lower_limit(current_index) = lower;
+            current_index++;
         }
     }
+
+    // // Optional: Print the results for verification
+    // std::cout << "Adjusted Upper Limits:\n" << m_adjusted_upper_limit << "\n\n";
+    // std::cout << "Adjusted Lower Limits:\n" << m_adjusted_lower_limit << "\n";
 
     // Setup OSQP solver instance
     osqp::OsqpInstance qp_instance;
@@ -726,6 +791,7 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
     qp_instance.upper_bounds.resize(kNumConstraints);
 
     Eigen::SparseMatrix<double> A_sparse(kNumConstraints, kNumVariables);
+    A_sparse.setZero(); // Set all constraint matrix values to 0
     std::vector<Eigen::Triplet<double>> A_triplets;
 
     int j = 0;  // Row counter

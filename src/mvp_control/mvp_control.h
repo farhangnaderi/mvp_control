@@ -50,6 +50,10 @@
  */
 #include "mimo_pid.h"
 
+
+#include <thread>  
+#include <chrono> 
+
 namespace ctrl {
 /** @brief MvpControl Class
  *
@@ -110,11 +114,13 @@ namespace ctrl {
         //! @brief Store the current angles for each servo
         std::vector<double> m_current_angles; 
 
-        //! @brief Adjusted upper limit for thruster constraints
-        std::vector<int> m_adjusted_upper_limit;
 
-        //! @brief Adjusted lower limit for thruster constraints
-        std::vector<int> m_adjusted_lower_limit;
+
+        // //! @brief Adjusted upper limit for thruster constraints
+        // Eigen::VectorXi m_adjusted_upper_limit;
+
+        // //! @brief Adjusted lower limit for thruster constraints
+        // Eigen::VectorXi m_adjusted_lower_limit;
 
         //! @brief Constants for solver
         static constexpr double kInfinity = std::numeric_limits<double>::infinity();
