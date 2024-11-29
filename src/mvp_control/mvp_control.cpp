@@ -133,9 +133,23 @@ void MvpControl::set_servo_speed(const decltype(m_servo_speed) &servo_speed) {
     m_servo_speed = servo_speed;
 }
 
-void MvpControl::set_current_angle(const int* m_thruster_index, double angle) {
-    m_current_angles[*m_thruster_index] = angle;
+double MvpControl::get_current_angle(const int* m_thruster_index) const {
+    if (m_thruster_index && *m_thruster_index >= 0 && *m_thruster_index < static_cast<int>(m_current_angles.size())) {
+        return m_current_angles[*m_thruster_index];
+    } else {
+        ROS_WARN("Invalid thruster index in get_current_angle");
+        return 0.0;
+    }
 }
+
+void MvpControl::set_current_angle(const int* m_thruster_index, double angle) {
+    if (m_thruster_index && *m_thruster_index >= 0 && *m_thruster_index < static_cast<int>(m_current_angles.size())) {
+        m_current_angles[*m_thruster_index] = angle;
+    } else {
+        ROS_WARN("Invalid thruster index in set_current_angle");
+    }
+}
+
 
 // Setter for thruster directions
 void MvpControl::set_thrust_direction(const std::vector<int>& thruster_directions) {
@@ -194,8 +208,8 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
     // static bool is_initialized = false;
     // if (!is_initialized) {
         // Initialize current angles if not already done
-        //m_current_angles.resize(m_thruster_vector.size(), 0.0);
-        m_current_angles.resize(m_thruster_vector.size());
+        m_current_angles.resize(m_thruster_vector.size(), 0.0);
+        // m_current_angles.resize(m_thruster_vector.size());
         std::vector<int> thruster_direction_action = get_thrust_direction();
         // printf("thruster_direction_action size: %zu\n", thruster_direction_action.size());
         // is_initialized = true;
@@ -369,20 +383,50 @@ bool MvpControl::f_optimize_thrust(Eigen::VectorXd *t, Eigen::VectorXd u) {
 
                     if (thruster_direction_action[i] == 1) {
 
-                        // Positive thrust direction
-                        A_triplets.emplace_back(j, i, 1.0);
-                        A_triplets.emplace_back(angleUpperRow, i, tan(-std::min(m_servo_speed[i] * deltaT , m_upper_angle[i] - m_current_angles[i])));
-                        A_triplets.emplace_back(angleLowerRow, i, tan(std::max(-m_servo_speed[i] * deltaT , m_lower_angle[i] - m_current_angles[i])));
-                        A_triplets.emplace_back(angleUpperRow, i + 1, 1.0);
-                        A_triplets.emplace_back(angleLowerRow, i + 1, -1.0);
-                        qp_instance.lower_bounds[j] = 0;
-                        qp_instance.upper_bounds[j] = m_adjusted_upper_limit[j] * std::cos(m_servo_speed[i] * deltaT);
-                        qp_instance.lower_bounds[angleUpperRow] = -kInfinity;
-                        qp_instance.upper_bounds[angleUpperRow] = 0;
-                        qp_instance.lower_bounds[angleLowerRow] = -kInfinity;
-                        qp_instance.upper_bounds[angleLowerRow] = 0;
-                        j += 3; //jumping the constraint rows
+                        // // Positive thrust direction
+                        // A_triplets.emplace_back(j, i, 1.0);
+                        // A_triplets.emplace_back(angleUpperRow, i, tan(-std::min(m_servo_speed[i] * deltaT ,m_upper_angle[i] - m_current_angles[i])));
+                        // A_triplets.emplace_back(angleLowerRow, i, tan(std::max(-m_servo_speed[i] * deltaT ,m_lower_angle[i] - m_current_angles[i])));
 
+                        // A_triplets.emplace_back(angleUpperRow, i + 1, 1.0);
+                        // A_triplets.emplace_back(angleLowerRow, i + 1, -1.0);
+                        // qp_instance.lower_bounds[j] = 0;
+                        // qp_instance.upper_bounds[j] = m_adjusted_upper_limit[j] * std::min(std::cos(m_servo_speed[i] * deltaT),std::cos(-m_servo_speed[i] * deltaT));
+                        // qp_instance.lower_bounds[angleUpperRow] = -kInfinity;
+                        // qp_instance.upper_bounds[angleUpperRow] = 0;
+                        // qp_instance.lower_bounds[angleLowerRow] = -kInfinity;
+                        // qp_instance.upper_bounds[angleLowerRow] = 0;
+                        // j += 3; //jumping the constraint rows
+
+
+                        // Compute alpha_u and alpha_l
+                        double alpha_u = std::min(m_servo_speed[i] * deltaT, m_upper_angle[i] - m_current_angles[i]);
+                        double alpha_l = std::max(-m_servo_speed[i] * deltaT, m_lower_angle[i] - m_current_angles[i]);
+
+                        std::cout << "alpha_u: " << alpha_u << ", alpha_l: " << alpha_l << std::endl;
+                        
+                        // Compute force_coefficient
+                        double force_coefficient = std::min(abs(std::cos(alpha_u)), abs(std::cos(alpha_l)));
+
+                        // Add thrust constraint
+                        A_triplets.emplace_back(thrustRow, i, 1.0);
+                        qp_instance.lower_bounds[thrustRow] = 0;
+                        qp_instance.upper_bounds[thrustRow] = m_adjusted_upper_limit[thrustRow] * force_coefficient;
+
+                        // Add angleUpperRow constraint
+                        A_triplets.emplace_back(angleUpperRow, i, std::tan(alpha_u));
+                        A_triplets.emplace_back(angleUpperRow, i + 1, -1.0);
+                        qp_instance.lower_bounds[angleUpperRow] = 0;
+                        qp_instance.upper_bounds[angleUpperRow] = kInfinity;
+
+                        // Add angleLowerRow constraint
+                        A_triplets.emplace_back(angleLowerRow, i, std::tan(alpha_l));
+                        A_triplets.emplace_back(angleLowerRow, i + 1, -1.0);
+                        qp_instance.lower_bounds[angleLowerRow] = 0;
+                        qp_instance.upper_bounds[angleLowerRow] = kInfinity;
+
+                        // Update the constraint row index
+                        j += 3; // Jumping the constraint rows
                     } else if (thruster_direction_action[i] == -1) {
 
                         // Negative thrust direction
